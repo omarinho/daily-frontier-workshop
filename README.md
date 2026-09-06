@@ -33,9 +33,10 @@ Three sequential stages, each a narrow, independently testable component:
    crashing the run.
 2. **Compiler** — assembles the lesson (Overview, Why It Matters Now, Core
    Concepts, Prerequisites, Hands-On Exercise, Verification, Further
-   Reading) from the research brief, and personalizes tooling choices from
-   `inputs/attachments/linkedin-profile-*.md` (defaults to Python/AWS,
-   skips re-explaining things you already know).
+   Reading) from the research brief, and personalizes tooling choices
+   against a small hardcoded profile of the learner's own background
+   (defaults to Python/AWS, skips re-explaining things you already know —
+   see `DEFAULT_PERSONALIZATION_PROFILE` in `compiler.py`).
 3. **Teacher** — renders the final Markdown file to
    `workshops/YYYY-MM-DD-{topic-slug}.md` and appends one entry to the
    append-only topic history (`daily_workshop/data/covered_topics.json`),
@@ -122,7 +123,6 @@ daily_workshop/
   tests/                 Full suite — no real network calls
 inputs/
   KEYS.md               Your API key (gitignored, create it yourself)
-  attachments/           Personalization source (e.g. your LinkedIn profile)
 workshops/               Generated lessons land here (gitignored)
 ```
 

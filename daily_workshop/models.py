@@ -55,10 +55,9 @@ class WorkshopDraft:
 class PersonalizationProfile:
     """Static, learner-specific rules the Compiler consults (AC11).
 
-    Derived from ``inputs/attachments/linkedin-profile-omar-marino.md``
-    "How the Agent System Should Use This" section. Refreshed manually
-    alongside that file — not parsed from Markdown at runtime, since the
-    profile snapshot changes monthly at most.
+    Set once from the learner's own background (stack, tooling preferences,
+    what to assume they already know) and refreshed manually — not parsed
+    from any external profile source at runtime.
     """
 
     preferred_language: str

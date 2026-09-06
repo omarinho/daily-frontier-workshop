@@ -38,9 +38,9 @@ NARRATIVE_HEADINGS: tuple[str, ...] = (
     HEADING_FURTHER_READING,
 )
 
-# Technologies senior-fluency suppression applies to (AC11 / REQ-011 /
-# linkedin-profile-omar-marino.md "assume senior-level fluency ... do not
-# spend workshop time re-explaining these").
+# Technologies senior-fluency suppression applies to (AC11 / REQ-011 — the
+# learner's personalization profile says "assume senior-level fluency ... do
+# not spend workshop time re-explaining these").
 _SUPPRESSIBLE_KEYWORDS: tuple[str, ...] = ("rest", "docker", "kubernetes", "k8s")
 _SUPPRESSIBLE_PROFILE_TECHNOLOGIES: tuple[str, ...] = (
     "rest_apis",
@@ -57,7 +57,7 @@ _KEY_FACT_FRAMINGS: tuple[str, ...] = (
     "Worth remembering: {fact}",
 )
 
-# See linkedin-profile-omar-marino.md "How the Agent System Should Use This".
+# The learner's own personalization defaults — see PersonalizationProfile.
 DEFAULT_PERSONALIZATION_PROFILE = PersonalizationProfile(
     preferred_language="python",
     preferred_cloud="aws",
