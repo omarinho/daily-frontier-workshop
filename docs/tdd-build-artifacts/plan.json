@@ -1,0 +1,174 @@
+{
+  "meta": {
+    "generated_by": "PlannerAgent",
+    "run_id": "2026-09-05T00:00:00-05:00",
+    "schema_version": "1.0"
+  },
+  "config": {
+    "codebase": {
+      "frontend": null,
+      "backend": "./daily_workshop",
+      "api": null
+    },
+    "stacks": {
+      "frontend": { "framework": null, "language": null, "ui_library": null, "bundler": null },
+      "backend": { "framework": null, "language": "python", "orm": null, "database": null },
+      "api": { "framework": null, "language": null, "orm": null, "database": null }
+    },
+    "servers": {
+      "frontend": null,
+      "backend": null,
+      "api": null,
+      "start_command": null
+    },
+    "tests": {
+      "frontend": { "e2e": null },
+      "backend": { "unit": "pytest", "integration": "pytest" },
+      "api": { "unit": null, "integration": null }
+    },
+    "style": {
+      "frontend": { "linter": null, "formatter": null, "rules_file": "inputs/code-style-guides/frontend.md" },
+      "backend": { "linter": "ruff", "formatter": "black", "rules_file": "inputs/code-style-guides/backend.md" },
+      "api": { "linter": null, "formatter": null, "rules_file": "inputs/code-style-guides/backend.md" }
+    },
+    "ci": {
+      "test":      { "frontend": null, "backend": "python -m pytest daily_workshop -v", "api": null },
+      "lint":      { "frontend": null, "backend": "ruff check daily_workshop", "api": null },
+      "lint_fix":  { "frontend": null, "backend": "ruff check daily_workshop --fix", "api": null },
+      "typecheck": { "frontend": null, "backend": "mypy daily_workshop", "api": null }
+    },
+    "figma": {
+      "pixel_threshold": 0.3,
+      "pass_score": 80.0,
+      "image_scale": 2.0
+    }
+  },
+  "knowledge_priming": {
+    "patterns_loaded": 0,
+    "active_warnings": [],
+    "note": "memory/aspnet-patterns.json, memory/angular-playwright-patterns.json, memory/android-kotlin-patterns.json, memory/general-patterns.json all read in Phase 0 Step 0 — all have empty entries[]. Knowledge base empty — this is run 1 for this stack (Python/pytest/ruff/black CLI tool)."
+  },
+  "requirements": [
+    { "id": "REQ-001", "source_ref": "AC1", "title": "Single CLI entrypoint runs the full pipeline", "module": "backend", "type": "functional", "priority": "must" },
+    { "id": "REQ-002", "source_ref": "AC2", "title": "Deterministic output location, no silent clobber", "module": "backend", "type": "functional", "priority": "must" },
+    { "id": "REQ-003", "source_ref": "AC3", "title": "Domain rotation fairness across 15 runs", "module": "backend", "type": "functional", "priority": "must" },
+    { "id": "REQ-004", "source_ref": "AC4", "title": "90-day topic dedup", "module": "backend", "type": "functional", "priority": "must" },
+    { "id": "REQ-005", "source_ref": "AC5", "title": "Seed-topic backlog fallback on research failure", "module": "backend", "type": "functional", "priority": "must" },
+    { "id": "REQ-006", "source_ref": "AC6", "title": "Fixed Markdown section order", "module": "backend", "type": "functional", "priority": "must" },
+    { "id": "REQ-007", "source_ref": "AC7", "title": "Time-budget enforcement (word count + step count)", "module": "backend", "type": "functional", "priority": "must" },
+    { "id": "REQ-008", "source_ref": "AC8", "title": "Append-only, durable covered-topics history", "module": "backend", "type": "functional", "priority": "must" },
+    { "id": "REQ-009", "source_ref": "AC9", "title": "No scheduler/daemon integration", "module": "backend", "type": "architecture", "priority": "must" },
+    { "id": "REQ-010", "source_ref": "AC10", "title": "Secrets discipline for research API key", "module": "backend", "type": "functional", "priority": "must" },
+    { "id": "REQ-011", "source_ref": "AC11", "title": "Personalization applied from LinkedIn profile", "module": "backend", "type": "functional", "priority": "must" },
+    { "id": "REQ-012", "source_ref": "Task Description - RESEARCHER", "title": "Research brief structure [inferred]", "module": "backend", "type": "functional", "priority": "should" },
+    { "id": "REQ-013", "source_ref": "Additional Notes - Seed Topic Backlog", "title": "Seed topic backlog minimum content [inferred]", "module": "backend", "type": "functional", "priority": "should" }
+  ],
+  "requirements_file": ".agent/requirements.json",
+  "traceability_file": ".agent/traceability.md",
+  "traceability": [
+    { "req_id": "REQ-001", "module": "backend", "test_type": "Integration", "test_file": "daily_workshop/tests/test_cli.py", "status": "PENDING" },
+    { "req_id": "REQ-002", "module": "backend", "test_type": "Integration", "test_file": "daily_workshop/tests/test_teacher.py", "status": "PENDING" },
+    { "req_id": "REQ-003", "module": "backend", "test_type": "Unit", "test_file": "daily_workshop/tests/test_researcher.py", "status": "PENDING" },
+    { "req_id": "REQ-004", "module": "backend", "test_type": "Unit", "test_file": "daily_workshop/tests/test_researcher.py", "status": "PENDING" },
+    { "req_id": "REQ-005", "module": "backend", "test_type": "Unit", "test_file": "daily_workshop/tests/test_researcher.py", "status": "PENDING" },
+    { "req_id": "REQ-006", "module": "backend", "test_type": "Unit", "test_file": "daily_workshop/tests/test_teacher.py", "status": "PENDING" },
+    { "req_id": "REQ-007", "module": "backend", "test_type": "Unit", "test_file": "daily_workshop/tests/test_compiler.py", "status": "PENDING" },
+    { "req_id": "REQ-008", "module": "backend", "test_type": "Unit", "test_file": "daily_workshop/tests/test_topic_store.py", "status": "PENDING" },
+    { "req_id": "REQ-009", "module": "backend", "test_type": "Static/Unit", "test_file": "daily_workshop/tests/test_architecture.py", "status": "PENDING" },
+    { "req_id": "REQ-010", "module": "backend", "test_type": "Unit", "test_file": "daily_workshop/tests/test_research_client.py", "status": "PENDING" },
+    { "req_id": "REQ-011", "module": "backend", "test_type": "Unit", "test_file": "daily_workshop/tests/test_compiler.py", "status": "PENDING" },
+    { "req_id": "REQ-012", "module": "backend", "test_type": "Unit", "test_file": "daily_workshop/tests/test_researcher.py", "status": "PENDING" },
+    { "req_id": "REQ-013", "module": "backend", "test_type": "Unit", "test_file": "daily_workshop/tests/test_seed_topics.py", "status": "PENDING" }
+  ],
+  "test_plan_file": ".agent/test-plan.md",
+  "test_plan": {
+    "frontend": [],
+    "backend": [
+      { "req_id": "REQ-001", "test_file": "daily_workshop/tests/test_cli.py", "test_cases": [
+        "TC-001-01: entrypoint with fakes runs Researcher->Compiler->Teacher and exits 0",
+        "TC-001-02: call-order spy proves stage ordering",
+        "TC-001-03 [inferred]: Teacher raises -> entrypoint exits non-zero"
+      ]},
+      { "req_id": "REQ-002", "test_file": "daily_workshop/tests/test_teacher.py", "test_cases": [
+        "TC-002-01: exactly one new file at workshops/{today}-{slug}.md",
+        "TC-002-02: second same-day run skips-with-message OR disambiguates filename; first file bytes unchanged",
+        "TC-002-03: slug is a deterministic normalized transform of the topic title"
+      ]},
+      { "req_id": "REQ-003", "test_file": "daily_workshop/tests/test_researcher.py", "test_cases": [
+        "TC-003-01: 15 simulated runs with fake rotation state -> each domain selected >=4 times",
+        "TC-003-02: rotation state persists correctly across fresh Researcher instances",
+        "TC-003-03: parametrized check that no domain is skipped indefinitely"
+      ]},
+      { "req_id": "REQ-004", "test_file": "daily_workshop/tests/test_researcher.py", "test_cases": [
+        "TC-004-01: slug dated 10 days ago excluded from candidates",
+        "TC-004-02 [inferred]: slug dated 91 days ago eligible again",
+        "TC-004-03 [inferred]: slug dated exactly at TOPIC_COOLDOWN_DAYS boundary has explicit tested behavior"
+      ]},
+      { "req_id": "REQ-005", "test_file": "daily_workshop/tests/test_researcher.py", "test_cases": [
+        "TC-005-01: FailingResearchClient raises -> falls back to next unused seed_topics.json entry, no unhandled exception",
+        "TC-005-02: client returns None/empty -> same fallback",
+        "TC-005-03: fallback branch is explicit/logged, not bare except: pass",
+        "TC-005-04 [inferred]: fallback still respects 90-day dedup"
+      ]},
+      { "req_id": "REQ-006", "test_file": "daily_workshop/tests/test_teacher.py", "test_cases": [
+        "TC-006-01: headings extracted in order exactly equal the 8 required headings (exact string match)",
+        "TC-006-02: missing a required heading fails structure validation before write"
+      ]},
+      { "req_id": "REQ-007", "test_file": "daily_workshop/tests/test_compiler.py", "test_cases": [
+        "TC-007-01: draft at 1100 words (in-band) written unchanged",
+        "TC-007-02: draft at 500 words expanded into band",
+        "TC-007-03: draft at 2000 words trimmed into band",
+        "TC-007-04: 3-step exercise expanded to >=4 steps",
+        "TC-007-05: 4-step and 8-step exercises pass unchanged (boundaries)",
+        "TC-007-06: 9-step exercise trimmed to <=8 steps",
+        "TC-007-07: MIN_WORDS/MAX_WORDS/MIN_STEPS/MAX_STEPS imported as named constants"
+      ]},
+      { "req_id": "REQ-008", "test_file": "daily_workshop/tests/test_topic_store.py", "test_cases": [
+        "TC-008-01: exactly one new well-formed entry appended; prior entries byte-for-byte unchanged",
+        "TC-008-02 [inferred]: simulated failure between temp-write and rename leaves original file uncorrupted"
+      ]},
+      { "req_id": "REQ-009", "test_file": "daily_workshop/tests/test_architecture.py", "test_cases": [
+        "TC-009-01: no scheduler-package imports anywhere in daily_workshop/",
+        "TC-009-02: no cron/systemd/Task-Scheduler config files in the repo",
+        "TC-009-03 [inferred]: no polling loop/daemon construct in __main__.py"
+      ]},
+      { "req_id": "REQ-010", "test_file": "daily_workshop/tests/test_research_client.py", "test_cases": [
+        "TC-010-01: concrete ResearchClient reads its API key only via a KEYS.md parser",
+        "TC-010-02: no .env usage anywhere in daily_workshop/",
+        "TC-010-03 [inferred]: missing/empty key -> clear configuration error at construction"
+      ]},
+      { "req_id": "REQ-011", "test_file": "daily_workshop/tests/test_compiler.py", "test_cases": [
+        "TC-011-01: PersonalizationProfile fields read during Compiler.run()",
+        "TC-011-02: cloud-domain brief -> render context receives cloud='aws' from profile",
+        "TC-011-03 [inferred]: senior-fluency suppression flag exercised for REST/Docker/K8s topics"
+      ]},
+      { "req_id": "REQ-012", "test_file": "daily_workshop/tests/test_researcher.py", "test_cases": [
+        "TC-012-01: ResearchBrief has non-empty title/rationale/source_links/exercise_idea/key_facts",
+        "TC-012-02: key_facts length validated/normalized within [3,5]"
+      ]},
+      { "req_id": "REQ-013", "test_file": "daily_workshop/tests/test_seed_topics.py", "test_cases": [
+        "TC-013-01: >=5 seed entries per domain (agentic_ai, cloud_computing, quantum_computing)",
+        "TC-013-02: each entry has unique normalized slug, title, domain"
+      ]}
+    ],
+    "api": []
+  },
+  "active_modules": ["backend"],
+  "frontend_active": false,
+  "figma_sources": [],
+  "auth_needed": false,
+  "figma_token_present": false,
+  "builder_notes": {
+    "cli_entrypoint": "Exact module/command naming is BuilderAgent's call. INSTRUCTIONS.md AC1 suggests `python -m daily_workshop.run` as an example only.",
+    "topic_store_location": "Covered-topics store must live inside ./daily_workshop's own data directory (e.g. daily_workshop/data/covered_topics.json) or under workshops/.state/ — never inside the repo's memory/*.json, which is this TDD framework's own unrelated knowledge base.",
+    "research_client_choice": "Concrete ResearchClient implementation (e.g. Anthropic API with web search, or a dedicated search API) and its API key's exact name in inputs/KEYS.md are BuilderAgent's implementation call. BuilderAgent must add the chosen KEY_NAME=... line and a short explanation to inputs/KEYS.md's existing 'Adding more keys' section during Phase 4/5 — never hardcode the key, never use a .env file (AC10).",
+    "seed_topics_backlog": "Bootstrap daily_workshop/seed_topics.json with at least 5 entries per domain, using inputs/INSTRUCTIONS.md's 'Seed Topic Backlog' list as the minimum starting set (agentic AI, cloud computing, quantum computing) — list may be expanded freely.",
+    "constants_location": "Define TARGET_MINUTES, MIN_WORDS, MAX_WORDS, MIN_STEPS, MAX_STEPS, TOPIC_COOLDOWN_DAYS once (suggest models.py or a small constants module) and import everywhere else — never inline duplicates (backend.md anti-pattern rule; REQ-007/REQ-004)."
+  },
+  "phase0_dependency_check": {
+    "playwright_skipped": true,
+    "playwright_skip_reason": "frontend_active = false; user directive to skip Phase 0 Playwright/auth-flow steps entirely for this backend/API-only task.",
+    "pytest_check_recommended": true,
+    "auth_state_file": null
+  }
+}

@@ -1,0 +1,221 @@
+{
+  "generated_at": "2026-09-05T00:00:00-05:00",
+  "source_files": [
+    "inputs/INSTRUCTIONS.md",
+    "inputs/code-style-guides/backend.md",
+    "inputs/attachments/linkedin-profile-omar-marino.md",
+    "inputs/KEYS.md"
+  ],
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "source_ref": "AC1",
+      "title": "Single CLI entrypoint runs the full pipeline",
+      "description": "One CLI entrypoint runs RESEARCHER -> COMPILER -> TEACHER in sequence and exits 0 on success (e.g. `python -m daily_workshop.run`; exact naming is BuilderAgent's call).",
+      "acceptance_criteria": [
+        "Given the entrypoint is invoked with fakes/injected dependencies wired for a deterministic run, when it executes, then Researcher, Compiler, and Teacher run in that order and the process exits 0",
+        "[inferred] Given any stage raises an unhandled error, when the entrypoint runs, then the process exits non-zero rather than exiting 0 on a partial run"
+      ],
+      "module": "backend",
+      "type": "functional",
+      "figma_refs": [],
+      "priority": "must",
+      "tags": ["cli", "orchestration", "entrypoint"]
+    },
+    {
+      "id": "REQ-002",
+      "source_ref": "AC2",
+      "title": "Deterministic output location, no silent clobber",
+      "description": "A successful run produces exactly one new file at workshops/YYYY-MM-DD-{topic-slug}.md. Running the command twice on the same calendar day must not silently clobber the first file.",
+      "acceptance_criteria": [
+        "Given a successful run, when it completes, then exactly one new file exists at workshops/YYYY-MM-DD-{topic-slug}.md with a deterministically normalized slug",
+        "Given the command is run a second time on the same calendar day, when Teacher attempts to write, then it either skips with a clear message or writes a disambiguated filename, and the first file's content is left unchanged either way"
+      ],
+      "module": "backend",
+      "type": "functional",
+      "figma_refs": [],
+      "priority": "must",
+      "tags": ["teacher", "filesystem", "idempotency"]
+    },
+    {
+      "id": "REQ-003",
+      "source_ref": "AC3",
+      "title": "Domain rotation fairness across 15 runs",
+      "description": "Researcher picks today's domain via a rotation so that, over any 15 consecutive weekday runs (injected/fake rotation state, no real network calls), each of the 3 domains (Agentic AI, Cloud Computing, Quantum Computing) is selected at least 4 times — no domain dominates indefinitely.",
+      "acceptance_criteria": [
+        "Given 15 simulated consecutive weekday runs using injected/fake rotation state, when domain selection runs each time, then each of the 3 domains was selected at least 4 times",
+        "Given the rotation state fixture, when selection logic runs, then it requires no network access to be unit-tested"
+      ],
+      "module": "backend",
+      "type": "functional",
+      "figma_refs": [],
+      "priority": "must",
+      "tags": ["researcher", "rotation"]
+    },
+    {
+      "id": "REQ-004",
+      "source_ref": "AC4",
+      "title": "90-day topic dedup",
+      "description": "Given a covered-topics store pre-seeded with a topic slug dated within the last 90 calendar days, the Researcher must not select that slug again (normalized-slug match). Unit-testable with a fixture store.",
+      "acceptance_criteria": [
+        "Given a covered-topics fixture store containing a slug dated 10 days ago, when Researcher selects a topic, then that slug is excluded from candidates",
+        "[inferred] Given a covered-topics fixture store containing a slug dated 91 days ago (outside cooldown), when Researcher selects a topic, then that slug is eligible again",
+        "[inferred] Given a slug dated exactly at the TOPIC_COOLDOWN_DAYS boundary, when Researcher selects a topic, then the boundary behavior (inclusive/exclusive) is explicit and tested"
+      ],
+      "module": "backend",
+      "type": "functional",
+      "figma_refs": [],
+      "priority": "must",
+      "tags": ["researcher", "topic_store", "dedup"]
+    },
+    {
+      "id": "REQ-005",
+      "source_ref": "AC5",
+      "title": "Seed-topic backlog fallback on research failure",
+      "description": "When the injected research/search client raises or returns nothing, the Researcher falls back to the next unused entry from the bundled seed-topic backlog (seed_topics.json) rather than raising an unhandled exception. Unit-testable by mocking the research client to fail.",
+      "acceptance_criteria": [
+        "Given an injected ResearchClient that raises an exception, when Researcher runs, then it falls back to the next unused seed_topics.json entry and completes without an unhandled exception",
+        "Given an injected ResearchClient that returns None/empty, when Researcher runs, then the same fallback path is taken",
+        "Given the fallback path is taken, when inspected, then it is an explicit, logged branch (not a bare except: pass)",
+        "[inferred] Given a seed topic has already been covered within the 90-day window, when the fallback selects a backlog entry, then it still respects the dedup rule from REQ-004"
+      ],
+      "module": "backend",
+      "type": "functional",
+      "figma_refs": [],
+      "priority": "must",
+      "tags": ["researcher", "fallback", "resilience"]
+    },
+    {
+      "id": "REQ-006",
+      "source_ref": "AC6",
+      "title": "Fixed Markdown section order",
+      "description": "Every generated workshop Markdown file contains these headings, in this exact order: Overview, Why It Matters Now, Core Concepts, Prerequisites & Setup, Hands-On Exercise, Verification / Expected Output, Further Reading, Self-Check Checklist.",
+      "acceptance_criteria": [
+        "Given a generated workshop file, when its headings are extracted in document order, then they exactly equal the 8 required headings in the specified order",
+        "Given a draft missing one of the required headings, when the template-structure check runs, then it fails before the file is written"
+      ],
+      "module": "backend",
+      "type": "functional",
+      "figma_refs": [],
+      "priority": "must",
+      "tags": ["teacher", "template", "markdown"]
+    },
+    {
+      "id": "REQ-007",
+      "source_ref": "AC7",
+      "title": "Time-budget enforcement (word count + step count)",
+      "description": "A generated document's prose word count falls within a configured band (default 900-1400 words, named constants MIN_WORDS/MAX_WORDS) and its Hands-On Exercise has 4-8 numbered steps (named constants). An out-of-band draft is trimmed/expanded before being written.",
+      "acceptance_criteria": [
+        "Given a draft with prose word count inside [MIN_WORDS, MAX_WORDS], when Compiler finalizes it, then it is written unchanged in length",
+        "Given a draft below MIN_WORDS, when Compiler finalizes it, then it is expanded to fall within the band before being written",
+        "Given a draft above MAX_WORDS, when Compiler finalizes it, then it is trimmed to fall within the band before being written",
+        "Given a Hands-On Exercise with fewer than 4 or more than 8 numbered steps, when Compiler finalizes it, then the step count is adjusted into [4, 8] before being written",
+        "Given the source code, when inspected, then MIN_WORDS, MAX_WORDS, and the step-count bounds are named module-level constants, not inline magic numbers"
+      ],
+      "module": "backend",
+      "type": "functional",
+      "figma_refs": [],
+      "priority": "must",
+      "tags": ["compiler", "word-budget", "constants"]
+    },
+    {
+      "id": "REQ-008",
+      "source_ref": "AC8",
+      "title": "Append-only, durable covered-topics history",
+      "description": "After a run, the covered-topics store contains exactly one new well-formed entry (date, domain, topic slug, one-line summary) and every prior entry is byte-for-byte unchanged. Writes must be atomic (write-temp-then-rename) so a crash mid-write cannot corrupt prior history.",
+      "acceptance_criteria": [
+        "Given a run completes, when the covered-topics store is read afterward, then it contains exactly one new well-formed entry and all prior entries are byte-for-byte unchanged",
+        "[inferred] Given a simulated failure between the temp-file write and the rename step, when the store is inspected afterward, then the original file is uncorrupted and still contains only its prior entries"
+      ],
+      "module": "backend",
+      "type": "functional",
+      "figma_refs": [],
+      "priority": "must",
+      "tags": ["topic_store", "persistence", "durability"]
+    },
+    {
+      "id": "REQ-009",
+      "source_ref": "AC9",
+      "title": "No scheduler/daemon integration",
+      "description": "The codebase must not include any cron, Task Scheduler, systemd timer, or background-daemon integration. This is a deliberate constraint (Omar runs it manually), not a missing feature.",
+      "acceptance_criteria": [
+        "Given the daily_workshop/ source tree, when scanned, then it contains no imports of scheduler packages (e.g. `schedule`, `APScheduler`) and no cron/systemd/Task Scheduler config files",
+        "[inferred] Given __main__.py / the entrypoint module, when inspected, then it contains no background polling loop or daemon-style long-running process"
+      ],
+      "module": "backend",
+      "type": "architecture",
+      "figma_refs": [],
+      "priority": "must",
+      "tags": ["architecture", "constraint", "no-scheduler"]
+    },
+    {
+      "id": "REQ-010",
+      "source_ref": "AC10",
+      "title": "Secrets discipline for research API key",
+      "description": "Any API key the Researcher needs (e.g. an LLM or search API key) is read only from inputs/KEYS.md at runtime, never hardcoded and never via a .env file, consistent with this repo's existing convention.",
+      "acceptance_criteria": [
+        "Given a ResearchClient implementation requiring an API key, when it initializes, then it reads the key only from inputs/KEYS.md (via a KEYS.md parser), never from a hardcoded literal",
+        "Given the daily_workshop/ source tree, when scanned, then it contains no .env file usage (e.g. python-dotenv) and no hardcoded key literals",
+        "[inferred] Given the key is missing/empty in inputs/KEYS.md, when the client initializes, then it raises a clear configuration error rather than silently falling back to a hardcoded value"
+      ],
+      "module": "backend",
+      "type": "functional",
+      "figma_refs": [],
+      "priority": "must",
+      "tags": ["security", "research_client", "keys"]
+    },
+    {
+      "id": "REQ-011",
+      "source_ref": "AC11",
+      "title": "Personalization applied from LinkedIn profile",
+      "description": "The Compiler's tool/stack choices in at least one generated example are traceable to a rule in inputs/attachments/linkedin-profile-omar-marino.md (e.g., a Python/AWS default) — verified by asserting the personalization rule is consulted, not exact generated prose.",
+      "acceptance_criteria": [
+        "Given a Compiler run, when it selects tooling/example choices, then it consults a personalization ruleset derived from linkedin-profile-omar-marino.md (e.g., default language=Python, default cloud=AWS)",
+        "Given a cloud-computing-domain topic, when Compiler picks a cloud example, then the personalization rule for 'prefer AWS' is read and applied to the render context (asserted via the rule/field consulted, not via exact prose matching)",
+        "[inferred] Given the profile's 'assume senior fluency with REST/Docker/Kubernetes' rule, when Compiler drafts prerequisite content, then it does not re-explain those basics (asserted via a suppression flag/branch taken, not prose matching)"
+      ],
+      "module": "backend",
+      "type": "functional",
+      "figma_refs": [],
+      "priority": "must",
+      "tags": ["compiler", "personalization"]
+    },
+    {
+      "id": "REQ-012",
+      "source_ref": "Task Description - RESEARCHER",
+      "title": "Research brief structure",
+      "description": "[inferred] The Researcher produces a structured research brief: topic title, why it matters right now, 3-5 key facts, primary source links, and a candidate hands-on exercise idea.",
+      "acceptance_criteria": [
+        "[inferred] Given a completed Researcher run, when the resulting ResearchBrief is inspected, then it has non-empty topic title, rationale, 3-5 key facts, at least one source link, and an exercise idea",
+        "[inferred] Given a ResearchBrief is constructed with fewer than 3 or more than 5 key facts, when validated, then this is caught by a test asserting the 3-5 band"
+      ],
+      "module": "backend",
+      "type": "functional",
+      "figma_refs": [],
+      "priority": "should",
+      "tags": ["researcher", "models", "data-shape"]
+    },
+    {
+      "id": "REQ-013",
+      "source_ref": "Additional Notes - Seed Topic Backlog",
+      "title": "Seed topic backlog minimum content",
+      "description": "[inferred] seed_topics.json is bootstrapped with at least 5 entries per domain (Agentic AI Systems, Cloud Computing for AI, Quantum Computing), each with the fields needed for fallback selection and dedup.",
+      "acceptance_criteria": [
+        "[inferred] Given seed_topics.json, when loaded, then each of the 3 domains has at least 5 candidate entries",
+        "[inferred] Given a seed topic entry, when inspected, then it has a normalized unique slug, a title, and a domain field usable by the dedup and fallback logic"
+      ],
+      "module": "backend",
+      "type": "functional",
+      "figma_refs": [],
+      "priority": "should",
+      "tags": ["researcher", "seed_topics", "backlog"]
+    }
+  ],
+  "figma_links": [],
+  "figma_sources": [],
+  "summary": {
+    "total": 13,
+    "by_module": { "backend": 13 },
+    "has_visual": false
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "meta": {
+    "generated_by": "BuilderAgent",
+    "run_id": "2026-09-05T00:00:00-05:00",
+    "schema_version": "1.0"
+  },
+  "results": {
+    "tdd_iterations_used": 2,
+    "tdd_iterations_budget": 15,
+    "tests_written": 75,
+    "tests_passing": 75,
+    "tests_failing": 0,
+    "modules_parallelized": false,
+    "remediation_round": 1
+  },
+  "builder_decisions": {
+    "cli_entrypoint": "python -m daily_workshop (daily_workshop/__main__.py; main() wires real Researcher/Compiler/Teacher, run(researcher, compiler, teacher) is the pure, test-facing pipeline function returning an exit code).",
+    "topic_store_location": "daily_workshop/data/covered_topics.json (daily_workshop/topic_store.py DEFAULT_TOPIC_STORE_PATH) — never under repo-root memory/.",
+    "research_client_choice": "AnthropicResearchClient in daily_workshop/research_client.py — calls the Anthropic Messages API (web_search tool) via stdlib urllib, no extra dependency. API key name: ANTHROPIC_API_KEY, read only via read_key_from_keys_md() from inputs/KEYS.md at construction time; documented in inputs/KEYS.md's 'Adding more keys' section under a new 'ANTHROPIC_API_KEY (Daily Frontier Workshop)' subsection. Zero tests call fetch_brief() on the real client — only the constructor's key-reading behavior is tested; all pipeline tests use tests/fakes.py (FakeResearchClient, FailingResearchClient, EmptyResearchClient).",
+    "seed_topics_backlog": "daily_workshop/seed_topics.json bootstrapped with 5 entries per domain (agentic_ai, cloud_computing, quantum_computing) drawn from inputs/INSTRUCTIONS.md's Seed Topic Backlog list; each entry's slug verified to equal text_utils.slugify(title).",
+    "constants_location": "daily_workshop/constants.py holds TARGET_MINUTES, MIN_WORDS, MAX_WORDS, MIN_STEPS, MAX_STEPS, MIN_KEY_FACTS, MAX_KEY_FACTS, TOPIC_COOLDOWN_DAYS, DOMAINS, REQUIRED_HEADINGS — imported everywhere else, never inlined (verified by test_compiler.py::test_compiler_module_imports_named_constants_not_magic_numbers)."
+  },
+  "failure_log": [
+    {
+      "iteration": 1,
+      "module": "backend",
+      "category": "WRONG_LOGIC",
+      "description": "test_rotation_persists_across_fresh_researcher_instances failed: Researcher.run() never appends to TopicStore (only Teacher does, by design), so calling researcher.run() in a loop without also recording each pick left history empty every iteration and every selection collapsed to the same domain.",
+      "fix_applied": "Updated the test to append a TopicRecord after each researcher.run() call, mirroring what Teacher does in the real pipeline, so persisted rotation history is actually exercised across fresh Researcher instances. No production code changed for this fix — the test's simulation of the pipeline was incomplete, not the implementation."
+    },
+    {
+      "iteration": 1,
+      "module": "backend",
+      "category": "CONFIG_ERROR",
+      "description": "Two self-referential architecture/secrets-discipline tests (test_architecture.py scanning for scheduler markers, test_research_client.py scanning for .env/dotenv usage) initially scanned the tests/ directory too, so their own marker strings and docstrings-under-test flagged themselves as violations; separately, __main__.py's docstring literally contained the substring 'cron' and research_client.py's docstring literally contained '.env', both as prose, not actual usage.",
+      "fix_applied": "Scoped both scanning tests to exclude the tests/ directory (production source only, documented inline). Reworded __main__.py and research_client.py docstrings to avoid the literal marker substrings while keeping the same meaning."
+    },
+    {
+      "iteration": 1,
+      "remediation_round": 1,
+      "module": "backend",
+      "req_id": "REQ-012",
+      "category": "MISSING_CODE",
+      "description": "JudgeAgent's round-1 correctness audit found 10 of 15 entries in daily_workshop/seed_topics.json had \"source_links\": [] while Researcher._select_from_seed_backlog read entry.get('source_links', ()) verbatim with no fallback and _normalize_key_facts never backfilled source_links, so any ResearchBrief built from one of those 10 seed entries (via Researcher's own bundled fallback path, the exact path the backlog-fallback requirement exercises whenever live research is unavailable) had an empty source_links tuple, violating REQ-012's 'at least one source link' shape requirement.",
+      "fix_applied": "(1) Populated all 10 empty \"source_links\" arrays in daily_workshop/seed_topics.json with a genuine, well-known documentation/reference URL matching each entry's topic (e.g. Anthropic's context-engineering post for 'Agent Memory and Context Engineering', NIST's PQC project page for 'Quantum-Safe Cryptography Migration'), matching the style of the 5 entries that already had a link — every one of the 15 bundled entries now has source_links. (2) Added Researcher._ensure_source_links(brief) in daily_workshop/researcher.py, called from run() alongside _normalize_key_facts, as a defense-in-depth safety net: if a ResearchBrief's source_links is ever empty (any seed entry or ResearchClient response), it substitutes an honest, generic ('search the web for: {title}') pointer and logs a warning, rather than fabricating a fake-looking specific URL or silently propagating an empty tuple. (3) Added two unit tests to daily_workshop/tests/test_researcher.py: test_seed_backlog_entry_with_empty_source_links_gets_fallback_pointer (a seed entry with source_links: [] now yields a non-empty, honest fallback via researcher.run()) and test_bundled_seed_topics_all_have_source_links (regression guard asserting every entry in the real, bundled seed_topics.json has at least one source_link, so the fallback stays a safety net rather than the everyday path)."
+    }
+  ],
+  "stuck_tests": [],
+  "files_created": [
+    "daily_workshop/__init__.py",
+    "daily_workshop/__main__.py",
+    "daily_workshop/constants.py",
+    "daily_workshop/models.py",
+    "daily_workshop/text_utils.py",
+    "daily_workshop/research_client.py",
+    "daily_workshop/topic_store.py",
+    "daily_workshop/researcher.py",
+    "daily_workshop/compiler.py",
+    "daily_workshop/teacher.py",
+    "daily_workshop/seed_topics.json",
+    "daily_workshop/tests/__init__.py",
+    "daily_workshop/tests/fakes.py",
+    "daily_workshop/tests/test_cli.py",
+    "daily_workshop/tests/test_teacher.py",
+    "daily_workshop/tests/test_researcher.py",
+    "daily_workshop/tests/test_compiler.py",
+    "daily_workshop/tests/test_topic_store.py",
+    "daily_workshop/tests/test_architecture.py",
+    "daily_workshop/tests/test_research_client.py",
+    "daily_workshop/tests/test_seed_topics.py"
+  ],
+  "files_modified": [
+    "inputs/KEYS.md",
+    "daily_workshop/seed_topics.json",
+    "daily_workshop/researcher.py",
+    "daily_workshop/tests/test_researcher.py"
+  ]
+}

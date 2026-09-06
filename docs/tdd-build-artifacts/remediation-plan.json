@@ -1,0 +1,21 @@
+{
+  "generated_by": "JudgeAgent",
+  "round": 1,
+  "gaps": [
+    {
+      "req_id": "REQ-012",
+      "criterion": "[inferred] Given a completed Researcher run, when the resulting ResearchBrief is inspected, then it has non-empty topic title, rationale, 3-5 key facts, at least one source link, and an exercise idea",
+      "evidence": "10 of the 15 entries in daily_workshop/seed_topics.json (across agentic_ai, cloud_computing, and quantum_computing) have \"source_links\": []. Researcher._select_from_seed_backlog (daily_workshop/researcher.py) reads `entry.get('source_links', ())` verbatim with no fallback, and Researcher._normalize_key_facts only clamps key_facts — it never inspects or backfills source_links. Any ResearchBrief built from one of those 10 seed entries has an empty source_links tuple, which fires on Researcher's own bundled fallback data (the exact path REQ-005 exercises whenever live research is unavailable).",
+      "module": "backend",
+      "affected_files_hint": [
+        "daily_workshop/seed_topics.json",
+        "daily_workshop/researcher.py"
+      ],
+      "suggested_fix_directions": [
+        "Populate the 10 empty \"source_links\" arrays in daily_workshop/seed_topics.json with at least one real, relevant documentation/reference URL per entry (preferred — keeps ResearchBrief content honest and useful, matches the pattern already used by the other 5 entries that do have a link).",
+        "AND/OR add an explicit, logged fallback in Researcher (e.g. in _select_from_seed_backlog or _normalize_key_facts) so that a seed entry with empty source_links still produces a ResearchBrief with a non-empty source_links tuple (e.g. a generic 'search the web for: {title}' pointer) rather than silently propagating an empty tuple — do not fabricate a fake-looking specific URL as a blanket default.",
+        "Add a unit test in researcher.py's suite covering the specific case of a seed backlog entry with empty source_links, so this class of gap cannot regress silently."
+      ]
+    }
+  ]
+}

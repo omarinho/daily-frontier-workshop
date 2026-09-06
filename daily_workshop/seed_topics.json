@@ -1,0 +1,188 @@
+{
+  "agentic_ai": [
+    {
+      "title": "Multi-Agent Orchestration Patterns",
+      "slug": "multi-agent-orchestration-patterns",
+      "rationale": "Multi-agent systems (planner/builder/judge style pipelines, supervisor-worker graphs) are becoming the default way to scale agentic AI beyond a single monolithic prompt loop.",
+      "key_facts": [
+        "Common topologies: supervisor-worker, peer-to-peer, and pipeline (sequential handoff).",
+        "Shared state/message-passing design determines how failures in one agent propagate.",
+        "Orchestration frameworks (LangGraph, CrewAI, AutoGen) differ mainly in how they model control flow."
+      ],
+      "source_links": ["https://langchain-ai.github.io/langgraph/"],
+      "exercise_idea": "Build a two-agent pipeline (researcher + summarizer) with an explicit handoff contract and a failure fallback."
+    },
+    {
+      "title": "Tool-Use and Function-Calling Design",
+      "slug": "tool-use-and-function-calling-design",
+      "rationale": "Well-designed tool schemas are the single biggest lever on agent reliability — vague tool contracts cause silent failures more often than model reasoning gaps.",
+      "key_facts": [
+        "Tool descriptions should specify preconditions, side effects, and failure modes explicitly.",
+        "Narrow, single-purpose tools outperform large multi-purpose ones for reliability.",
+        "Structured output (JSON schema) validation catches most tool-call errors before execution."
+      ],
+      "source_links": ["https://docs.anthropic.com/en/docs/build-with-claude/tool-use"],
+      "exercise_idea": "Design and implement a small tool schema with explicit error contracts, then test it against three deliberately malformed calls."
+    },
+    {
+      "title": "Agent Memory and Context Engineering",
+      "slug": "agent-memory-and-context-engineering",
+      "rationale": "As agent tasks grow longer, what an agent remembers (and forgets) between steps matters more than raw context window size.",
+      "key_facts": [
+        "Short-term (scratchpad) memory and long-term (retrieval-backed) memory solve different problems.",
+        "Summarization and compaction strategies trade recall for context budget.",
+        "Poor memory design is a leading cause of agents repeating failed actions."
+      ],
+      "source_links": ["https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents"],
+      "exercise_idea": "Implement a simple rolling-summary memory buffer and measure how it changes a multi-step agent's success rate on a repeated task."
+    },
+    {
+      "title": "Evaluation and Guardrails for Autonomous Agents",
+      "slug": "evaluation-and-guardrails-for-autonomous-agents",
+      "rationale": "Agents that take real-world actions need measurable evaluation and hard guardrails, not just spot-checked demos.",
+      "key_facts": [
+        "LLM-as-judge evaluation needs its own calibration, not blind trust.",
+        "Guardrails should be enforced in code (allow-lists, confirmation steps), not just prompted for.",
+        "Regression suites for agent behavior catch prompt-change breakage that unit tests miss."
+      ],
+      "source_links": ["https://github.com/openai/evals"],
+      "exercise_idea": "Write a small eval harness that scores an agent's tool-call transcript against a rubric and flags guardrail violations."
+    },
+    {
+      "title": "MCP (Model Context Protocol) Servers",
+      "slug": "mcp-model-context-protocol-servers",
+      "rationale": "MCP standardizes how agents discover and call external tools/data sources, replacing bespoke per-agent integration code.",
+      "key_facts": [
+        "An MCP server exposes tools/resources over a standard protocol any compliant client can call.",
+        "This decouples tool implementation from any single agent framework.",
+        "Local MCP servers are a practical way to give an agent filesystem/API access safely."
+      ],
+      "source_links": ["https://modelcontextprotocol.io/"],
+      "exercise_idea": "Stand up a minimal MCP server exposing one custom tool and connect it to an MCP-compatible client."
+    }
+  ],
+  "cloud_computing": [
+    {
+      "title": "Serverless Inference with AWS Lambda and Bedrock",
+      "slug": "serverless-inference-with-aws-lambda-and-bedrock",
+      "rationale": "Serverless inference removes idle-GPU cost for spiky AI workloads, at the price of cold-start latency you have to design around.",
+      "key_facts": [
+        "AWS Bedrock exposes foundation models behind a managed API with no infrastructure to provision.",
+        "Lambda cold starts are the main latency risk for request-driven inference paths.",
+        "Provisioned concurrency trades cost for predictable latency."
+      ],
+      "source_links": ["https://aws.amazon.com/bedrock/"],
+      "exercise_idea": "Deploy a Lambda function that calls Bedrock for a single inference request and measure cold-start vs. warm-start latency."
+    },
+    {
+      "title": "GPU and Accelerator Provisioning and Cost Optimization",
+      "slug": "gpu-and-accelerator-provisioning-and-cost-optimization",
+      "rationale": "GPU spend is usually the largest line item in an AI workload's cloud bill, and most of it is avoidable idle time.",
+      "key_facts": [
+        "Spot/preemptible GPU instances can cut cost 60-90% for fault-tolerant batch jobs.",
+        "Right-sizing (matching accelerator type to model size) is often more impactful than instance discounts.",
+        "Autoscaling GPU pools needs a warm-pool strategy to avoid provisioning-latency penalties."
+      ],
+      "source_links": ["https://aws.amazon.com/ec2/spot/"],
+      "exercise_idea": "Estimate and compare on-demand vs. spot GPU cost for a small batch inference job, then implement the spot version with a checkpoint/retry strategy."
+    },
+    {
+      "title": "Vector Databases and RAG Infrastructure",
+      "slug": "vector-databases-and-rag-infrastructure",
+      "rationale": "Retrieval-augmented generation is the most common way to ground LLM output in your own data, and the vector store is its critical-path dependency.",
+      "key_facts": [
+        "Approximate nearest-neighbor indexes (HNSW, IVF) trade recall for query speed.",
+        "Chunking strategy affects retrieval quality more than embedding-model choice in most cases.",
+        "Hybrid (keyword + vector) search often outperforms pure vector search for factual queries."
+      ],
+      "source_links": ["https://www.pinecone.io/learn/vector-database/"],
+      "exercise_idea": "Stand up a local vector store, ingest a small document set with two chunking strategies, and compare retrieval quality."
+    },
+    {
+      "title": "Event-Driven Data Pipelines for LLM Workloads",
+      "slug": "event-driven-data-pipelines-for-llm-workloads",
+      "rationale": "LLM pipelines increasingly need to react to events (new document, user action) rather than run on a fixed batch schedule.",
+      "key_facts": [
+        "Event-driven pipelines decouple producers (data sources) from consumers (embedding/inference jobs) via a queue or stream.",
+        "At-least-once delivery semantics mean downstream steps must be idempotent.",
+        "Dead-letter queues are essential for isolating malformed events without blocking the pipeline."
+      ],
+      "source_links": ["https://kafka.apache.org/documentation/"],
+      "exercise_idea": "Build a small event-driven pipeline (queue -> embedding step -> vector store write) and verify idempotent handling of a duplicated event."
+    },
+    {
+      "title": "Infrastructure as Code for Agent Deployments",
+      "slug": "infrastructure-as-code-for-agent-deployments",
+      "rationale": "Agent systems have more moving parts (tool servers, vector stores, queues) than a typical API, making IaC the difference between reproducible and unmanageable deployments.",
+      "key_facts": [
+        "Declarative IaC tools (Terraform, CDK) make agent-infrastructure changes reviewable and revertible.",
+        "Environment parity (dev/staging/prod) matters more for agent systems because tool availability differs by environment.",
+        "Secrets should be provisioned via the IaC tool's secret-manager integration, never inlined in config."
+      ],
+      "source_links": ["https://developer.hashicorp.com/terraform/intro"],
+      "exercise_idea": "Write an IaC module that provisions one small piece of agent infrastructure (e.g. a queue and a function) and apply it to a sandbox environment."
+    }
+  ],
+  "quantum_computing": [
+    {
+      "title": "Hands-On Circuits with Qiskit and Cirq",
+      "slug": "hands-on-circuits-with-qiskit-and-cirq",
+      "rationale": "Building and running a real circuit on a simulator (or real hardware queue) is the fastest way to build quantum intuition beyond the math.",
+      "key_facts": [
+        "A qubit's state is a superposition described by complex amplitudes, not a classical 0/1.",
+        "Gate-based circuits are the dominant programming model for near-term quantum hardware.",
+        "Simulators let you validate a circuit's logic before spending time on a real-hardware queue."
+      ],
+      "source_links": ["https://qiskit.org/"],
+      "exercise_idea": "Build and simulate a Bell-state circuit in Qiskit and verify the expected entangled measurement distribution."
+    },
+    {
+      "title": "Quantum Error Correction Basics",
+      "slug": "quantum-error-correction-basics",
+      "rationale": "Qubits decohere quickly, and error correction is the main obstacle between today's noisy hardware and fault-tolerant quantum computing.",
+      "key_facts": [
+        "Physical qubits are noisy; logical qubits are encoded across many physical qubits for redundancy.",
+        "The surface code is the most widely pursued near-term error-correction scheme.",
+        "Error rates below a hardware-specific threshold are required before correction actually helps."
+      ],
+      "source_links": ["https://en.wikipedia.org/wiki/Quantum_error_correction"],
+      "exercise_idea": "Simulate a simple 3-qubit bit-flip code and show it corrects a single injected error."
+    },
+    {
+      "title": "Variational Algorithms QAOA and VQE",
+      "slug": "variational-algorithms-qaoa-and-vqe",
+      "rationale": "Variational algorithms are the most practical near-term use of noisy quantum hardware, combining a quantum circuit with classical optimization.",
+      "key_facts": [
+        "QAOA targets combinatorial optimization problems; VQE targets finding a molecule's ground-state energy.",
+        "Both alternate between a quantum circuit evaluation and a classical optimizer step.",
+        "Circuit depth is the main practical limit on near-term hardware for these algorithms."
+      ],
+      "source_links": ["https://en.wikipedia.org/wiki/Quantum_approximate_optimization_algorithm"],
+      "exercise_idea": "Implement a small QAOA circuit for a toy Max-Cut problem and compare its result to the brute-force optimum."
+    },
+    {
+      "title": "Quantum-Safe Cryptography Migration",
+      "slug": "quantum-safe-cryptography-migration",
+      "rationale": "A sufficiently large fault-tolerant quantum computer would break RSA/ECC, making post-quantum cryptography migration a live infrastructure concern today.",
+      "key_facts": [
+        "NIST has standardized post-quantum algorithms (e.g. CRYSTALS-Kyber, CRYSTALS-Dilithium).",
+        "'Harvest now, decrypt later' attacks mean migration urgency exists even before large quantum computers do.",
+        "Hybrid classical+post-quantum schemes are the recommended near-term migration path."
+      ],
+      "source_links": ["https://csrc.nist.gov/projects/post-quantum-cryptography"],
+      "exercise_idea": "Use a post-quantum cryptography library to generate a Kyber keypair and perform a key encapsulation round-trip."
+    },
+    {
+      "title": "Hybrid Classical-Quantum Workflows",
+      "slug": "hybrid-classical-quantum-workflows",
+      "rationale": "Nearly every practical near-term quantum application is a hybrid workflow, with the quantum step handling only the part classical computing can't do efficiently.",
+      "key_facts": [
+        "Classical pre/post-processing usually dominates the wall-clock time of a hybrid workflow.",
+        "Result mitigation (error mitigation, not correction) is commonly applied classically to noisy quantum output.",
+        "Designing the classical/quantum split well is often more impactful than the quantum circuit itself."
+      ],
+      "source_links": ["https://docs.quantum.ibm.com/guides/hybrid-workflows"],
+      "exercise_idea": "Wrap a simulated quantum circuit call in a classical pre-processing/post-processing pipeline and document the split."
+    }
+  ]
+}

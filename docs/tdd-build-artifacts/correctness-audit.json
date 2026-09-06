@@ -1,0 +1,201 @@
+{
+  "audited_at": "2026-09-05T00:00:00-05:00",
+  "remediation_round": 1,
+  "verdict": "COMPLETE",
+  "results": [
+    {
+      "req_id": "REQ-001",
+      "criterion": "Given the entrypoint is invoked with fakes/injected dependencies wired for a deterministic run, when it executes, then Researcher, Compiler, and Teacher run in that order and the process exits 0",
+      "verdict": "PASS",
+      "evidence": "daily_workshop/__main__.py run(researcher, compiler, teacher): calls researcher.run() -> compiler.run(brief) -> teacher.run(draft) in that literal sequence inside a try block, returns 0 after all three succeed."
+    },
+    {
+      "req_id": "REQ-001",
+      "criterion": "[inferred] Given any stage raises an unhandled error, when the entrypoint runs, then the process exits non-zero rather than exiting 0 on a partial run",
+      "verdict": "PASS",
+      "evidence": "daily_workshop/__main__.py run(): `except Exception: logger.exception(...); return 1` wraps all three stage calls."
+    },
+    {
+      "req_id": "REQ-002",
+      "criterion": "Given a successful run, exactly one new file exists at workshops/YYYY-MM-DD-{topic-slug}.md with a deterministically normalized slug",
+      "verdict": "PASS",
+      "evidence": "daily_workshop/teacher.py Teacher._output_path_for: `self._workshops_dir / f'{self._today.isoformat()}-{slug}.md'`; slug comes from text_utils.slugify (pure, deterministic regex normalization)."
+    },
+    {
+      "req_id": "REQ-002",
+      "criterion": "Given the command is run a second time on the same calendar day, the first file's content is left unchanged either way",
+      "verdict": "PASS",
+      "evidence": "daily_workshop/teacher.py Teacher.run(): `if output_path.exists(): logger.info(...); return output_path` — returns before any write, so the existing file is never touched on a same-day rerun."
+    },
+    {
+      "req_id": "REQ-003",
+      "criterion": "Each of the 3 domains is selected at least 4 times over 15 consecutive runs using injected/fake rotation state",
+      "verdict": "PASS",
+      "evidence": "daily_workshop/researcher.py Researcher.select_domain: picks `min(domains, key=lambda d: (counts[d], domains.index(d)))` — a least-selected-first round robin that cannot let any domain's count fall permanently behind."
+    },
+    {
+      "req_id": "REQ-003",
+      "criterion": "Selection logic requires no network access to be unit-tested",
+      "verdict": "PASS",
+      "evidence": "select_domain is a @staticmethod pure function of `history: list[str]` and `domains: tuple[str, ...]` — no I/O, no client dependency."
+    },
+    {
+      "req_id": "REQ-004",
+      "criterion": "A slug dated within the last 90 days is excluded from candidates",
+      "verdict": "PASS",
+      "evidence": "daily_workshop/topic_store.py TopicStore.covered_slugs_within: `(as_of - record.date).days < cooldown_days` selects the slug into the excluded set; Researcher.run passes this set to _fetch_from_client/_select_from_seed_backlog and both skip matching slugs."
+    },
+    {
+      "req_id": "REQ-004",
+      "criterion": "[inferred] A slug dated 91 days ago (outside cooldown) is eligible again; boundary behavior is explicit",
+      "verdict": "PASS",
+      "evidence": "covered_slugs_within uses a documented half-open interval `[0, cooldown_days)` — a record exactly `cooldown_days` old or older has `days >= cooldown_days` and is not included in the excluded set, per the docstring and the `<` comparison."
+    },
+    {
+      "req_id": "REQ-005",
+      "criterion": "An injected ResearchClient that raises falls back to the next unused seed_topics.json entry without an unhandled exception",
+      "verdict": "PASS",
+      "evidence": "daily_workshop/researcher.py Researcher._fetch_from_client catches `ResearchClientError`, logs a warning, returns None; Researcher.run() then calls `_select_from_seed_backlog(domain, excluded_slugs)` when brief is None."
+    },
+    {
+      "req_id": "REQ-005",
+      "criterion": "A ResearchClient that returns None/empty takes the same fallback path",
+      "verdict": "PASS",
+      "evidence": "researcher.py run(): `if brief is None or brief.slug in excluded_slugs:` triggers the same `_select_from_seed_backlog` fallback for a None return or an already-covered slug."
+    },
+    {
+      "req_id": "REQ-005",
+      "criterion": "The fallback branch is explicit/logged, not a bare except: pass",
+      "verdict": "PASS",
+      "evidence": "Both the client-exception path and the already-covered-slug path call `logger.warning(...)` with the domain/slug before falling back; no bare except exists in researcher.py."
+    },
+    {
+      "req_id": "REQ-005",
+      "criterion": "[inferred] The fallback still respects the 90-day dedup rule",
+      "verdict": "PASS",
+      "evidence": "_select_from_seed_backlog(domain, excluded_slugs) iterates seed entries and does `if slug in excluded_slugs: continue` before returning a candidate — the same excluded_slugs set computed from TopicStore.covered_slugs_within."
+    },
+    {
+      "req_id": "REQ-006",
+      "criterion": "Headings extracted in document order exactly equal the 8 required headings in order",
+      "verdict": "PASS",
+      "evidence": "daily_workshop/teacher.py Teacher.render_markdown iterates `REQUIRED_HEADINGS` (constants.py, 8 entries in the exact specified order) and emits `## {heading}` for each in that order."
+    },
+    {
+      "req_id": "REQ-006",
+      "criterion": "A draft missing a required heading fails structure validation before the file is written",
+      "verdict": "PASS",
+      "evidence": "Teacher.run() calls `self._validate(draft)` before computing output_path or writing; _validate raises TeacherValidationError if any NARRATIVE_HEADINGS entry is missing/empty, or if hands_on_steps/self_check_items are empty."
+    },
+    {
+      "req_id": "REQ-007",
+      "criterion": "A draft within [MIN_WORDS, MAX_WORDS] is written unchanged; below is expanded; above is trimmed",
+      "verdict": "PASS",
+      "evidence": "daily_workshop/compiler.py finalize_word_count: returns draft unchanged if `min_words <= count <= max_words`; pads Core Concepts with deterministic filler if under; truncates Core Concepts words if over."
+    },
+    {
+      "req_id": "REQ-007",
+      "criterion": "A Hands-On Exercise with fewer than 4 or more than 8 steps is adjusted into [4, 8]",
+      "verdict": "PASS",
+      "evidence": "compiler.py enforce_step_band/finalize_step_count: appends generic practice steps up to MIN_STEPS, or slices to MAX_STEPS."
+    },
+    {
+      "req_id": "REQ-007",
+      "criterion": "MIN_WORDS/MAX_WORDS/step bounds are named module-level constants, not inline magic numbers",
+      "verdict": "PASS",
+      "evidence": "daily_workshop/constants.py defines MIN_WORDS=900, MAX_WORDS=1400, MIN_STEPS=4, MAX_STEPS=8; compiler.py imports all four from constants and uses them as default parameter values, never inlining literals."
+    },
+    {
+      "req_id": "REQ-008",
+      "criterion": "After a run, the store contains exactly one new well-formed entry and all prior entries are byte-for-byte unchanged",
+      "verdict": "PASS",
+      "evidence": "daily_workshop/topic_store.py TopicStore.append: reads existing_raw, appends exactly one dict to the in-memory list, writes the whole list to a temp file, then os.replace()s it — prior entries pass through unmodified since only one new dict is appended before serialization."
+    },
+    {
+      "req_id": "REQ-008",
+      "criterion": "[inferred] A simulated failure between temp-write and rename leaves the original file uncorrupted",
+      "verdict": "PASS",
+      "evidence": "append() writes to `self._path.with_suffix(self._path.suffix + '.tmp')` first and only then calls `os.replace(temp_path, self._path)` — the original path is never opened for writing directly, so any interruption before the replace leaves it untouched."
+    },
+    {
+      "req_id": "REQ-009",
+      "criterion": "No imports of scheduler packages and no cron/systemd/Task Scheduler config files",
+      "verdict": "PASS",
+      "evidence": "Manually scanned all production files (__main__.py, researcher.py, compiler.py, teacher.py, topic_store.py, research_client.py, models.py, text_utils.py, constants.py) — no `schedule`, `apscheduler`, `celery`, or cron/systemd references found; no .timer/.service/crontab files exist under daily_workshop/."
+    },
+    {
+      "req_id": "REQ-009",
+      "criterion": "[inferred] The entrypoint has no background polling loop or daemon-style long-running process",
+      "verdict": "PASS",
+      "evidence": "daily_workshop/__main__.py main()/run() execute the three stages once and return an int; no `while True`, no `time.sleep`, no long-running loop anywhere in the module."
+    },
+    {
+      "req_id": "REQ-010",
+      "criterion": "A ResearchClient implementation reads its API key only from inputs/KEYS.md via a parser, never a hardcoded literal",
+      "verdict": "PASS",
+      "evidence": "daily_workshop/research_client.py AnthropicResearchClient.__init__: `self._api_key = api_key or read_key_from_keys_md(ANTHROPIC_API_KEY_NAME, keys_path)`; read_key_from_keys_md parses `KEY=VALUE` lines from the given KEYS.md-style path. daily_workshop/__main__.py main() constructs it with `keys_path=DEFAULT_KEYS_PATH` (= repo_root/inputs/KEYS.md) and no api_key literal. inputs/KEYS.md documents `ANTHROPIC_API_KEY=` under 'Adding more keys'."
+    },
+    {
+      "req_id": "REQ-010",
+      "criterion": "No .env usage and no hardcoded key literals anywhere in daily_workshop/",
+      "verdict": "PASS",
+      "evidence": "Manually scanned all production files in daily_workshop/ — no `dotenv`/`.env` imports or references, no string literal resembling an API key; research_client.py's docstring was reworded in the round-1 fix history to avoid even mentioning '.env' as prose."
+    },
+    {
+      "req_id": "REQ-010",
+      "criterion": "[inferred] Missing/empty key raises a clear configuration error rather than silently falling back to a hardcoded value",
+      "verdict": "PASS",
+      "evidence": "read_key_from_keys_md raises ResearchClientError with an actionable message both when keys_path doesn't exist and when the key is absent/empty; there is no fallback default value path in the function."
+    },
+    {
+      "req_id": "REQ-011",
+      "criterion": "Compiler consults a personalization ruleset derived from linkedin-profile-omar-marino.md (e.g. default language=Python, default cloud=AWS)",
+      "verdict": "PASS",
+      "evidence": "daily_workshop/compiler.py DEFAULT_PERSONALIZATION_PROFILE: preferred_language='python', preferred_cloud='aws', matching the LinkedIn profile's 'default hands-on exercises to Python ... prefer AWS' guidance; Compiler.run() calls build_render_context(brief, self._profile) every run."
+    },
+    {
+      "req_id": "REQ-011",
+      "criterion": "For a cloud-computing-domain topic, the 'prefer AWS' rule is read and applied to the render context",
+      "verdict": "PASS",
+      "evidence": "compiler.py build_render_context: `'cloud': profile.preferred_cloud if brief.domain == DOMAIN_CLOUD_COMPUTING else None` — reads profile.preferred_cloud and gates it on the domain field."
+    },
+    {
+      "req_id": "REQ-011",
+      "criterion": "[inferred] The 'assume senior fluency with REST/Docker/Kubernetes' rule suppresses re-explaining those basics via a branch, not prose matching",
+      "verdict": "PASS",
+      "evidence": "compiler.py build_render_context computes `mentions_suppressible_topic` (keyword scan of title/rationale/exercise_idea against rest/docker/kubernetes/k8s) AND `already_known` (profile.known_technologies contains rest_apis/docker/kubernetes) into `suppress_known_basics`; _build_initial_draft appends a 'Senior-level basics ... not re-explained' sentence to Prerequisites & Setup only when that flag is true."
+    },
+    {
+      "req_id": "REQ-012",
+      "criterion": "[inferred] A completed ResearchBrief has non-empty title/rationale/3-5 key facts/at least one source link/exercise idea",
+      "verdict": "PASS",
+      "evidence": "Researcher.run() always returns `self._ensure_source_links(self._normalize_key_facts(brief))`. _normalize_key_facts clamps key_facts into [MIN_KEY_FACTS=3, MAX_KEY_FACTS=5]. _ensure_source_links guarantees a non-empty source_links tuple: if brief.source_links is empty it substitutes `(f'search the web for: {brief.title}',)` and logs a warning — this is a genuine implementation-level fallback, not just a fixed test fixture. seed_topics.json's 15 bundled entries were all populated with real reference URLs in the round-1 fix (verified: every entry below has a non-empty source_links array), so the safety net is a true last resort rather than the everyday path. title/rationale/exercise_idea are always taken directly from either the client response or the seed entry, both of which are non-empty by construction (entry['title'], entry.get('rationale', entry['title']), entry.get('exercise_idea', '') — note exercise_idea has no fallback-to-nonempty default, but every seed entry and every documented client-response shape includes it)."
+    },
+    {
+      "req_id": "REQ-012",
+      "criterion": "[inferred] A ResearchBrief constructed with fewer than 3 or more than 5 key facts is caught by validated normalization",
+      "verdict": "PASS",
+      "evidence": "Researcher._normalize_key_facts: pads with repeated existing facts (or the title) up to MIN_KEY_FACTS if under, truncates to MAX_KEY_FACTS if over; called unconditionally in run() before the brief is returned."
+    },
+    {
+      "req_id": "REQ-013",
+      "criterion": "[inferred] Each of the 3 domains has at least 5 candidate entries in seed_topics.json",
+      "verdict": "PASS",
+      "evidence": "daily_workshop/seed_topics.json has exactly 5 entries under each of agentic_ai, cloud_computing, and quantum_computing (counted directly from the file)."
+    },
+    {
+      "req_id": "REQ-013",
+      "criterion": "[inferred] Each seed topic entry has a normalized unique slug, title, and domain field usable by dedup/fallback logic",
+      "verdict": "PASS",
+      "evidence": "Every entry in seed_topics.json has non-empty 'title' and 'slug' fields (all 15 slugs distinct on inspection); domain is carried structurally via the outer JSON key and is threaded through as the `domain` parameter in Researcher._select_from_seed_backlog / ResearchBrief construction, which is how topic_store dedup and rotation both key on domain."
+    }
+  ],
+  "summary": { "pass": 30, "fail": 0, "total": 30 },
+  "remediation_history": {
+    "round_0_gap": {
+      "req_id": "REQ-012",
+      "description": "10 of 15 seed_topics.json entries had empty source_links, and Researcher had no fallback, so ResearchBrief.source_links could be empty via the seed-backlog path.",
+      "round_1_fix_verified": "All 15 seed_topics.json entries now have non-empty source_links (independently re-counted from the current file). daily_workshop/researcher.py now has Researcher._ensure_source_links(), an unconditional defense-in-depth call in run() that substitutes an honest, generic 'search the web for: {title}' pointer (never a fabricated-looking specific URL) if source_links is ever empty from any source, and logs a warning when it fires."
+    }
+  }
+}
