@@ -77,12 +77,11 @@ def test_enforce_word_band_leaves_in_band_prose_unchanged() -> None:
     assert enforce_word_band(prose) == prose
 
 
-def test_enforce_word_band_expands_under_band_prose() -> None:
-    # TC-007-02
+def test_enforce_word_band_leaves_under_band_prose_unchanged() -> None:
+    # A short brief means a shorter, still fully real, lesson — never
+    # padded with fabricated filler to hit MIN_WORDS.
     prose = _words(500)
-    result = enforce_word_band(prose)
-    assert MIN_WORDS <= len(result.split()) <= MAX_WORDS
-    assert len(result.split()) == MIN_WORDS
+    assert enforce_word_band(prose) == prose
 
 
 def test_enforce_word_band_trims_over_band_prose() -> None:
@@ -128,11 +127,22 @@ def test_finalize_word_count_leaves_in_band_draft_unchanged() -> None:
     assert total_word_count(result) == 1100
 
 
-def test_finalize_word_count_expands_under_band_draft_into_band() -> None:
-    # TC-007-02
+def test_finalize_word_count_leaves_under_band_draft_unchanged() -> None:
+    # A short research brief means a shorter, still fully real, lesson —
+    # never padded with fabricated filler to hit MIN_WORDS.
     draft = _draft_with_core_word_count(500)
     result = finalize_word_count(draft)
-    assert MIN_WORDS <= total_word_count(result) <= MAX_WORDS
+    assert total_word_count(result) == 500
+    assert result.sections[HEADING_CORE_CONCEPTS] == draft.sections[HEADING_CORE_CONCEPTS]
+
+
+def test_finalize_word_count_logs_warning_when_under_band(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    draft = _draft_with_core_word_count(500)
+    with caplog.at_level("WARNING"):
+        finalize_word_count(draft)
+    assert any("under the" in record.message for record in caplog.records)
 
 
 def test_finalize_word_count_trims_over_band_draft_into_band() -> None:
@@ -194,18 +204,6 @@ def test_further_reading_renders_source_links_as_bullet_list() -> None:
     further_reading = draft.sections["Further Reading"]
     assert "- https://a.example" in further_reading
     assert "- https://b.example" in further_reading
-
-
-def test_finalize_word_count_padding_never_ends_mid_sentence() -> None:
-    # Regression: padding used to truncate to an exact word count, which
-    # could cut the final reflection sentence in half.
-    draft = _draft_with_core_word_count(10)
-
-    result = finalize_word_count(draft)
-
-    core = result.sections[HEADING_CORE_CONCEPTS]
-    assert core.rstrip().endswith((".", "!", "?"))
-    assert MIN_WORDS <= total_word_count(result) <= MAX_WORDS
 
 
 def test_finalize_step_count_expands_and_trims() -> None:
@@ -308,12 +306,14 @@ def test_overview_and_why_it_matters_now_do_not_duplicate_multi_sentence_rationa
     assert "second, distinct sentence" not in draft.sections["Overview"]
 
 
-def test_compiler_run_produces_draft_within_word_and_step_bands() -> None:
+def test_compiler_run_produces_draft_within_max_words_and_step_bands() -> None:
+    # A short fixture brief legitimately produces a short (real, unpadded)
+    # draft — only the MAX_WORDS ceiling and the step band are enforced.
     brief = _brief(domain="cloud_computing")
     compiler = Compiler(profile=_profile())
 
     draft = compiler.run(brief)
 
-    assert MIN_WORDS <= total_word_count(draft) <= MAX_WORDS
+    assert total_word_count(draft) <= MAX_WORDS
     assert MIN_STEPS <= len(draft.hands_on_steps) <= MAX_STEPS
     assert draft.self_check_items

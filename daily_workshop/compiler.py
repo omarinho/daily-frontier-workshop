@@ -9,6 +9,7 @@ I/O, no randomness, so they're trivial to unit test in isolation.
 from __future__ import annotations
 
 import dataclasses
+import logging
 import re
 
 from daily_workshop.constants import (
@@ -25,6 +26,8 @@ from daily_workshop.constants import (
     MIN_WORDS,
 )
 from daily_workshop.models import PersonalizationProfile, ResearchBrief, WorkshopDraft
+
+logger = logging.getLogger(__name__)
 
 NARRATIVE_HEADINGS: tuple[str, ...] = (
     HEADING_OVERVIEW,
@@ -43,32 +46,6 @@ _SUPPRESSIBLE_PROFILE_TECHNOLOGIES: tuple[str, ...] = (
     "rest_apis",
     "docker",
     "kubernetes",
-)
-
-# Deterministic filler used only as a last resort to pad prose up to
-# MIN_WORDS, after key-fact elaboration (_build_core_concepts) has already
-# used all real brief content. Several distinct sentences, cycled, so a
-# large shortfall never repeats one sentence dozens of times verbatim —
-# see _pad_to_extra_words. Never shortens content that already carries
-# meaning — see enforce_word_band.
-_REFLECTION_SENTENCES: tuple[str, ...] = (
-    (
-        "This detail reinforces the exercise's practical value and helps "
-        "build durable intuition you can reuse the next time this pattern "
-        "comes up."
-    ),
-    (
-        "Understanding this well now saves debugging time the next time "
-        "you touch a system built on it."
-    ),
-    (
-        "This is the kind of detail that separates surface familiarity "
-        "from real hands-on competence with the topic."
-    ),
-    (
-        "Revisit this point after finishing the exercise — it will make "
-        "more sense once you have seen it in action."
-    ),
 )
 
 # Cycled per key fact in _build_core_concepts so elaborated facts read as
@@ -121,35 +98,6 @@ def build_render_context(
     }
 
 
-def _pad_to_extra_words(extra_words_needed: int) -> str:
-    words: list[str] = []
-    i = 0
-    while len(words) < extra_words_needed:
-        words.extend(_REFLECTION_SENTENCES[i % len(_REFLECTION_SENTENCES)].split())
-        i += 1
-    return " ".join(words[:extra_words_needed])
-
-
-def _pad_with_whole_sentences(extra_words_needed: int) -> str:
-    """Like :func:`_pad_to_extra_words`, but never cuts a sentence in half.
-
-    Joined with blank lines (not spaces) so a heavily padded section still
-    reads as separate paragraphs instead of one dense wall of text. May
-    overshoot ``extra_words_needed`` by up to one sentence's length —
-    callers that need the total re-clamped against MAX_WORDS afterward
-    (finalize_word_count) do so themselves.
-    """
-    sentences: list[str] = []
-    total = 0
-    i = 0
-    while total < extra_words_needed:
-        sentence = _REFLECTION_SENTENCES[i % len(_REFLECTION_SENTENCES)]
-        sentences.append(sentence)
-        total += len(sentence.split())
-        i += 1
-    return "\n\n".join(sentences)
-
-
 def _split_rationale(rationale: str) -> tuple[str, str]:
     """Split a multi-sentence rationale into (hook, rest).
 
@@ -178,21 +126,15 @@ def _build_core_concepts(key_facts: tuple[str, ...]) -> str:
     return "\n\n".join(paragraphs)
 
 
-def enforce_word_band(
-    prose: str, min_words: int = MIN_WORDS, max_words: int = MAX_WORDS
-) -> str:
-    """Return ``prose`` unchanged if within [min_words, max_words].
+def enforce_word_band(prose: str, max_words: int = MAX_WORDS) -> str:
+    """Cap ``prose`` at ``max_words``; never pad short prose with filler.
 
-    Otherwise pads (deterministic filler) up to exactly ``min_words``, or
-    truncates down to exactly ``max_words``.
+    A short brief means a shorter, still fully real, lesson — not an
+    inflated one. Only over-length prose gets touched, and only trimmed.
     """
     words = prose.split()
-    count = len(words)
-    if min_words <= count <= max_words:
+    if len(words) <= max_words:
         return prose
-    if count < min_words:
-        padding = _pad_to_extra_words(min_words - count)
-        return f"{prose.rstrip()} {padding}".strip()
     return " ".join(words[:max_words])
 
 
@@ -250,26 +192,31 @@ def _trim_to_word_budget(text: str, word_budget: int) -> str:
 def finalize_word_count(
     draft: WorkshopDraft, min_words: int = MIN_WORDS, max_words: int = MAX_WORDS
 ) -> WorkshopDraft:
-    """Trim/expand ``draft`` (via its Core Concepts section) into the word band (AC7)."""
+    """Cap ``draft`` (via its Core Concepts section) at ``max_words``.
+
+    Never pads a short draft — a day with less real content to say produces
+    a shorter, still fully real, lesson rather than one inflated with
+    filler. ``min_words`` is only used to log a visibility warning.
+    """
     count = total_word_count(draft)
-    if min_words <= count <= max_words:
+    if count < min_words:
+        logger.warning(
+            "Workshop draft %r is %d words, under the %d-word target — "
+            "the research brief for today simply had less real content; "
+            "not padding it with filler.",
+            draft.slug,
+            count,
+            min_words,
+        )
+    if count <= max_words:
         return draft
 
     sections = dict(draft.sections)
     core = sections.get(HEADING_CORE_CONCEPTS, "")
-    if count < min_words:
-        padding = _pad_with_whole_sentences(min_words - count)
-        core = f"{core.rstrip()}\n\n{padding}".strip()
-        new_total = count + len(padding.split())
-        if new_total > max_words:
-            core_word_count = sum(len(p.split()) for p in core.split("\n\n"))
-            keep = max(core_word_count - (new_total - max_words), 0)
-            core = _trim_to_word_budget(core, keep)
-    else:
-        overshoot = count - max_words
-        core_word_count = sum(len(p.split()) for p in core.split("\n\n"))
-        keep = max(core_word_count - overshoot, 0)
-        core = _trim_to_word_budget(core, keep)
+    overshoot = count - max_words
+    core_word_count = sum(len(p.split()) for p in core.split("\n\n"))
+    keep = max(core_word_count - overshoot, 0)
+    core = _trim_to_word_budget(core, keep)
     sections[HEADING_CORE_CONCEPTS] = core
     return dataclasses.replace(draft, sections=sections)
 

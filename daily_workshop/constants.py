@@ -9,6 +9,12 @@ imported everywhere else. Do not inline these values — see
 from __future__ import annotations
 
 # ─── Time budget (AC7) ──────────────────────────────────────────────────────
+# MAX_WORDS is a hard ceiling (Compiler trims to it) so a single verbose
+# research brief can't blow past the 40-minute budget. MIN_WORDS is a soft
+# floor used only to flag a short brief (Compiler logs a warning) — never to
+# pad real content with fabricated filler. A day with genuinely less to say
+# should produce a shorter, still fully real, lesson rather than an inflated
+# one.
 TARGET_MINUTES: int = 40
 MIN_WORDS: int = 900
 MAX_WORDS: int = 1400
