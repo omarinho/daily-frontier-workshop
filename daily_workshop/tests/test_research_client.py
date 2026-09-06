@@ -1,17 +1,35 @@
 # REQ-010: Secrets discipline for the research API key (AC10).
 from __future__ import annotations
 
+import json
+import urllib.error
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 import daily_workshop
 from daily_workshop.research_client import (
     ANTHROPIC_API_KEY_NAME,
+    ANTHROPIC_MODEL,
     AnthropicResearchClient,
     ResearchClientError,
     read_key_from_keys_md,
 )
+
+
+def _models_response(*model_ids_with_dates: tuple[str, str]) -> MagicMock:
+    """Build a mock urlopen() context manager returning a Models API payload."""
+    payload = {
+        "data": [
+            {"id": model_id, "created_at": created_at}
+            for model_id, created_at in model_ids_with_dates
+        ]
+    }
+    response = MagicMock()
+    response.read.return_value = json.dumps(payload).encode("utf-8")
+    response.__enter__.return_value = response
+    return response
 
 _VALID_BRIEF_JSON = (
     '{"title": "MCP Servers", "rationale": "Growing adoption", '
@@ -144,6 +162,85 @@ def test_parse_response_raises_clear_error_when_no_text_block_present() -> None:
 
     with pytest.raises(ResearchClientError, match="no text block"):
         AnthropicResearchClient._parse_response("agentic_ai", payload)
+
+
+def test_current_model_picks_newest_sonnet_tier_model(tmp_path: Path) -> None:
+    keys_path = _write_keys_md(tmp_path, f"{ANTHROPIC_API_KEY_NAME}=sk-test\n")
+    client = AnthropicResearchClient(keys_path=keys_path)
+    response = _models_response(
+        ("claude-opus-5", "2026-07-24T00:00:00Z"),
+        ("claude-sonnet-5", "2026-01-01T00:00:00Z"),
+        ("claude-sonnet-6", "2026-08-01T00:00:00Z"),
+        ("claude-haiku-4-5-20251001", "2025-10-01T00:00:00Z"),
+    )
+
+    with patch("urllib.request.urlopen", return_value=response):
+        model = client._current_model()
+
+    assert model == "claude-sonnet-6"
+
+
+def test_current_model_falls_back_when_no_sonnet_tier_model_listed(
+    tmp_path: Path,
+) -> None:
+    keys_path = _write_keys_md(tmp_path, f"{ANTHROPIC_API_KEY_NAME}=sk-test\n")
+    client = AnthropicResearchClient(keys_path=keys_path)
+    response = _models_response(("claude-opus-5", "2026-07-24T00:00:00Z"))
+
+    with patch("urllib.request.urlopen", return_value=response):
+        model = client._current_model()
+
+    assert model == ANTHROPIC_MODEL
+
+
+def test_current_model_falls_back_on_network_error(tmp_path: Path) -> None:
+    keys_path = _write_keys_md(tmp_path, f"{ANTHROPIC_API_KEY_NAME}=sk-test\n")
+    client = AnthropicResearchClient(keys_path=keys_path)
+
+    with patch(
+        "urllib.request.urlopen",
+        side_effect=urllib.error.URLError("no network"),
+    ):
+        model = client._current_model()
+
+    assert model == ANTHROPIC_MODEL
+
+
+def test_current_model_resolved_once_and_cached_per_instance(tmp_path: Path) -> None:
+    keys_path = _write_keys_md(tmp_path, f"{ANTHROPIC_API_KEY_NAME}=sk-test\n")
+    client = AnthropicResearchClient(keys_path=keys_path)
+    response = _models_response(("claude-sonnet-5", "2026-01-01T00:00:00Z"))
+
+    with patch("urllib.request.urlopen", return_value=response) as mock_urlopen:
+        client._current_model()
+        client._current_model()
+
+    assert mock_urlopen.call_count == 1
+
+
+def test_explicit_model_override_skips_the_network_lookup_entirely(
+    tmp_path: Path,
+) -> None:
+    keys_path = _write_keys_md(tmp_path, f"{ANTHROPIC_API_KEY_NAME}=sk-test\n")
+    client = AnthropicResearchClient(keys_path=keys_path, model="claude-sonnet-5")
+
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        model = client._current_model()
+
+    mock_urlopen.assert_not_called()
+    assert model == "claude-sonnet-5"
+
+
+def test_constructing_client_never_touches_the_network(tmp_path: Path) -> None:
+    # __init__ must not call the Models API — resolution is lazy, on the
+    # first fetch_brief()/_current_model() call, so simply instantiating a
+    # client (as every other test in this file does) never hits network.
+    keys_path = _write_keys_md(tmp_path, f"{ANTHROPIC_API_KEY_NAME}=sk-test\n")
+
+    with patch("urllib.request.urlopen") as mock_urlopen:
+        AnthropicResearchClient(keys_path=keys_path)
+
+    mock_urlopen.assert_not_called()
 
 
 def test_no_dotenv_usage_anywhere_in_daily_workshop() -> None:

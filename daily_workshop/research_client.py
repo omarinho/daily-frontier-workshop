@@ -16,6 +16,8 @@ behavior) and use :class:`ResearchClient` fakes for everything else.
 from __future__ import annotations
 
 import json
+import logging
+import re
 import urllib.error
 import urllib.request
 from abc import ABC, abstractmethod
@@ -24,10 +26,18 @@ from pathlib import Path
 from daily_workshop.models import ResearchBrief
 from daily_workshop.text_utils import slugify
 
+logger = logging.getLogger(__name__)
+
 ANTHROPIC_API_KEY_NAME: str = "ANTHROPIC_API_KEY"
 ANTHROPIC_API_URL: str = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_MODELS_URL: str = "https://api.anthropic.com/v1/models"
 ANTHROPIC_API_VERSION: str = "2023-06-01"
+# Fallback only — used if the live model-list lookup fails or returns no
+# Sonnet-tier match. AnthropicResearchClient queries ANTHROPIC_MODELS_URL on
+# each run and picks the newest model matching MODEL_TIER_PATTERN, so a new
+# Sonnet release is picked up automatically without editing this constant.
 ANTHROPIC_MODEL: str = "claude-sonnet-5"
+MODEL_TIER_PATTERN: re.Pattern[str] = re.compile(r"^claude-sonnet-\d")
 ANTHROPIC_MAX_TOKENS: int = 4096
 ANTHROPIC_REQUEST_TIMEOUT_SECONDS: int = 30
 
@@ -89,16 +99,84 @@ def read_key_from_keys_md(key_name: str, keys_path: Path) -> str:
 class AnthropicResearchClient(ResearchClient):
     """Calls the Anthropic Messages API (with web search) for one topic."""
 
-    def __init__(self, keys_path: Path, api_key: str | None = None) -> None:
+    def __init__(
+        self,
+        keys_path: Path,
+        api_key: str | None = None,
+        model: str | None = None,
+    ) -> None:
         self._api_key = api_key or read_key_from_keys_md(
             ANTHROPIC_API_KEY_NAME, keys_path
         )
+        # `model` pins an exact model, skipping the live lookup entirely —
+        # used by tests and available as a manual override. Left unset, the
+        # model is resolved once per instance, lazily, on the first
+        # fetch_brief() call (never in __init__, so constructing a client
+        # never touches the network on its own).
+        self._model_override = model
+        self._resolved_model: str | None = None
+
+    def _current_model(self) -> str:
+        if self._model_override:
+            return self._model_override
+        if self._resolved_model is None:
+            self._resolved_model = self._resolve_current_model()
+        return self._resolved_model
+
+    def _resolve_current_model(self) -> str:
+        """Query the Models API and return the newest Sonnet-tier model id.
+
+        Falls back to ANTHROPIC_MODEL (the last known-good pinned snapshot)
+        on any network failure or if no Sonnet-tier model is listed, so a
+        model-list outage or API change never blocks a run.
+        """
+        request = urllib.request.Request(
+            ANTHROPIC_MODELS_URL,
+            headers={
+                "x-api-key": self._api_key,
+                "anthropic-version": ANTHROPIC_API_VERSION,
+            },
+        )
+        try:
+            with urllib.request.urlopen(
+                request, timeout=ANTHROPIC_REQUEST_TIMEOUT_SECONDS
+            ) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+            logger.warning(
+                "Could not list Anthropic models (%s); falling back to "
+                "pinned model %r.",
+                exc,
+                ANTHROPIC_MODEL,
+            )
+            return ANTHROPIC_MODEL
+        candidates = [
+            entry
+            for entry in payload.get("data", [])
+            if isinstance(entry, dict) and MODEL_TIER_PATTERN.match(entry.get("id", ""))
+        ]
+        if not candidates:
+            logger.warning(
+                "No Sonnet-tier model found in the Anthropic model list; "
+                "falling back to pinned model %r.",
+                ANTHROPIC_MODEL,
+            )
+            return ANTHROPIC_MODEL
+        newest = max(candidates, key=lambda entry: entry.get("created_at", ""))
+        model_id = str(newest["id"])
+        if model_id != ANTHROPIC_MODEL:
+            logger.info(
+                "Using %r (newer than the pinned fallback %r).",
+                model_id,
+                ANTHROPIC_MODEL,
+            )
+        return model_id
 
     def fetch_brief(
         self, domain: str, excluded_slugs: frozenset[str]
     ) -> ResearchBrief | None:
         request_body = {
-            "model": ANTHROPIC_MODEL,
+            "model": self._current_model(),
             "max_tokens": ANTHROPIC_MAX_TOKENS,
             "tools": [{"type": "web_search_20250305", "name": "web_search"}],
             "messages": [
