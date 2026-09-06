@@ -224,6 +224,24 @@ def test_senior_fluency_suppression_flag_false_when_topic_is_unrelated() -> None
     assert context["suppress_known_basics"] is False
 
 
+def test_overview_and_why_it_matters_now_do_not_duplicate_multi_sentence_rationale() -> (
+    None
+):
+    brief = _brief(
+        rationale=(
+            "This is the hook sentence. This is a second, distinct "
+            "sentence with real detail."
+        )
+    )
+    compiler = Compiler(profile=_profile())
+
+    draft = compiler.run(brief)
+
+    assert draft.sections["Overview"] != draft.sections["Why It Matters Now"]
+    assert "second, distinct sentence" in draft.sections["Why It Matters Now"]
+    assert "second, distinct sentence" not in draft.sections["Overview"]
+
+
 def test_compiler_run_produces_draft_within_word_and_step_bands() -> None:
     brief = _brief(domain="cloud_computing")
     compiler = Compiler(profile=_profile())

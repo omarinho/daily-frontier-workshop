@@ -13,6 +13,13 @@ from daily_workshop.research_client import (
     read_key_from_keys_md,
 )
 
+_VALID_BRIEF_JSON = (
+    '{"title": "MCP Servers", "rationale": "Growing adoption", '
+    '"key_facts": ["a", "b", "c"], '
+    '"source_links": ["https://modelcontextprotocol.io"], '
+    '"exercise_idea": "Build a minimal MCP server"}'
+)
+
 _DAILY_WORKSHOP_DIR = Path(daily_workshop.__file__).resolve().parent
 
 
@@ -69,6 +76,74 @@ def test_missing_key_entirely_raises_clear_configuration_error(tmp_path: Path) -
 
     with pytest.raises(ResearchClientError):
         AnthropicResearchClient(keys_path=keys_path)
+
+
+def test_parse_response_skips_leading_web_search_blocks() -> None:
+    # Regression: a real web-search-enabled response puts server_tool_use /
+    # web_search_tool_result blocks BEFORE the final text block — the parser
+    # must not assume content[0] is text.
+    payload = {
+        "content": [
+            {"type": "server_tool_use", "id": "srvtoolu_1", "name": "web_search"},
+            {"type": "web_search_tool_result", "tool_use_id": "srvtoolu_1"},
+            {"type": "text", "text": _VALID_BRIEF_JSON},
+        ]
+    }
+
+    brief = AnthropicResearchClient._parse_response("agentic_ai", payload)
+
+    assert brief is not None
+    assert brief.title == "MCP Servers"
+    assert brief.slug == "mcp-servers"
+    assert brief.source_links == ("https://modelcontextprotocol.io",)
+
+
+def test_parse_response_strips_surrounding_prose_and_code_fences() -> None:
+    payload = {
+        "content": [
+            {"type": "text", "text": f"```json\n{_VALID_BRIEF_JSON}\n```"},
+        ]
+    }
+
+    brief = AnthropicResearchClient._parse_response("agentic_ai", payload)
+
+    assert brief is not None
+    assert brief.title == "MCP Servers"
+
+
+def test_parse_response_flattens_key_facts_and_source_links_returned_as_objects() -> (
+    None
+):
+    # Regression: the model sometimes nests list entries as objects
+    # (e.g. {"fact": "...", "explanation": "..."}) despite the prompt
+    # asking for plain strings — this must not crash the run.
+    brief_json = (
+        '{"title": "MCP Servers", "rationale": "Growing adoption", '
+        '"key_facts": [{"fact": "Point one", "explanation": "because X"}, '
+        '"Plain fact two"], '
+        '"source_links": [{"url": "https://example.com", "title": "Docs"}], '
+        '"exercise_idea": "Build a minimal MCP server"}'
+    )
+    payload = {"content": [{"type": "text", "text": brief_json}]}
+
+    brief = AnthropicResearchClient._parse_response("agentic_ai", payload)
+
+    assert brief is not None
+    assert brief.key_facts[0] == "Point one because X"
+    assert brief.key_facts[1] == "Plain fact two"
+    assert brief.source_links[0] == "https://example.com Docs"
+
+
+def test_parse_response_raises_clear_error_when_no_text_block_present() -> None:
+    payload = {
+        "content": [
+            {"type": "server_tool_use", "id": "srvtoolu_1", "name": "web_search"},
+        ],
+        "stop_reason": "max_tokens",
+    }
+
+    with pytest.raises(ResearchClientError, match="no text block"):
+        AnthropicResearchClient._parse_response("agentic_ai", payload)
 
 
 def test_no_dotenv_usage_anywhere_in_daily_workshop() -> None:

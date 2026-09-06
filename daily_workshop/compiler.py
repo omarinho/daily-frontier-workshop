@@ -9,6 +9,7 @@ I/O, no randomness, so they're trivial to unit test in isolation.
 from __future__ import annotations
 
 import dataclasses
+import re
 
 from daily_workshop.constants import (
     DOMAIN_CLOUD_COMPUTING,
@@ -44,11 +45,39 @@ _SUPPRESSIBLE_PROFILE_TECHNOLOGIES: tuple[str, ...] = (
     "kubernetes",
 )
 
-# Deterministic filler used only to pad prose up to MIN_WORDS. Never
-# shortens content that already carries meaning — see enforce_word_band.
-_FILLER_SENTENCE: str = (
-    "This detail reinforces the exercise's practical value and helps build "
-    "durable intuition you can reuse the next time this pattern comes up."
+# Deterministic filler used only as a last resort to pad prose up to
+# MIN_WORDS, after key-fact elaboration (_build_core_concepts) has already
+# used all real brief content. Several distinct sentences, cycled, so a
+# large shortfall never repeats one sentence dozens of times verbatim —
+# see _pad_to_extra_words. Never shortens content that already carries
+# meaning — see enforce_word_band.
+_REFLECTION_SENTENCES: tuple[str, ...] = (
+    (
+        "This detail reinforces the exercise's practical value and helps "
+        "build durable intuition you can reuse the next time this pattern "
+        "comes up."
+    ),
+    (
+        "Understanding this well now saves debugging time the next time "
+        "you touch a system built on it."
+    ),
+    (
+        "This is the kind of detail that separates surface familiarity "
+        "from real hands-on competence with the topic."
+    ),
+    (
+        "Revisit this point after finishing the exercise — it will make "
+        "more sense once you have seen it in action."
+    ),
+)
+
+# Cycled per key fact in _build_core_concepts so elaborated facts read as
+# distinct sentences rather than a bare list — real brief content, not
+# fabricated detail.
+_KEY_FACT_FRAMINGS: tuple[str, ...] = (
+    "Key fact: {fact}",
+    "In practice, this means: {fact}",
+    "Worth remembering: {fact}",
 )
 
 # See linkedin-profile-omar-marino.md "How the Agent System Should Use This".
@@ -93,9 +122,36 @@ def build_render_context(
 
 
 def _pad_to_extra_words(extra_words_needed: int) -> str:
-    filler_words = _FILLER_SENTENCE.split()
-    padding = [filler_words[i % len(filler_words)] for i in range(extra_words_needed)]
-    return " ".join(padding)
+    words: list[str] = []
+    i = 0
+    while len(words) < extra_words_needed:
+        words.extend(_REFLECTION_SENTENCES[i % len(_REFLECTION_SENTENCES)].split())
+        i += 1
+    return " ".join(words[:extra_words_needed])
+
+
+def _split_rationale(rationale: str) -> tuple[str, str]:
+    """Split a multi-sentence rationale into (hook, rest).
+
+    Overview gets the hook (first sentence); Why It Matters Now gets the
+    rest — so a rich, multi-sentence rationale isn't duplicated verbatim
+    across both sections. A single-sentence rationale degrades gracefully
+    to the same text in both (nothing left to split).
+    """
+    sentences = re.split(r"(?<=[.!?]) +", rationale.strip())
+    if len(sentences) <= 1:
+        return rationale, rationale
+    return sentences[0], " ".join(sentences[1:])
+
+
+def _build_core_concepts(key_facts: tuple[str, ...]) -> str:
+    """Elaborate each key fact into its own sentence (real content, not filler)."""
+    sentences = []
+    for i, fact in enumerate(key_facts):
+        framing = _KEY_FACT_FRAMINGS[i % len(_KEY_FACT_FRAMINGS)]
+        sentence = framing.format(fact=fact.rstrip("."))
+        sentences.append(f"{sentence}.")
+    return " ".join(sentences)
 
 
 def enforce_word_band(
@@ -206,10 +262,16 @@ def _build_initial_draft(
         if context.get("suppress_known_basics")
         else ""
     )
+    overview_hook, why_rest = _split_rationale(brief.rationale)
     sections = {
-        HEADING_OVERVIEW: f"{brief.title}. {brief.rationale}",
-        HEADING_WHY_IT_MATTERS_NOW: brief.rationale,
-        HEADING_CORE_CONCEPTS: " ".join(brief.key_facts),
+        HEADING_OVERVIEW: f"{brief.title}. {overview_hook}",
+        HEADING_WHY_IT_MATTERS_NOW: (
+            f"{why_rest} This is the moment to build hands-on fluency here "
+            f"— the underlying technology is moving quickly, and today's "
+            f"exercise gives you real, current practice instead of dated "
+            f"theory."
+        ),
+        HEADING_CORE_CONCEPTS: _build_core_concepts(brief.key_facts),
         HEADING_PREREQUISITES: (
             f"A {language} environment is assumed{cloud_note}.{basics_note}"
         ),
