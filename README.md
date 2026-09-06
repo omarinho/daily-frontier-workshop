@@ -10,6 +10,8 @@ writes one Markdown file.
 
 ```
 $ python -m daily_workshop
+INFO:daily_workshop.researcher:Domain selected: agentic_ai. Appearances in
+last 15 runs: {...} (policy: >= 4 per domain). Lifetime counts: {...}.
 WARNING:daily_workshop.compiler:Workshop draft '...' is 414 words, under the
 900-word target — the research brief for today simply had less real
 content; not padding it with filler.
@@ -171,6 +173,7 @@ daily_workshop/
   compiler.py            Lesson assembly, personalization, word-band capping
   teacher.py             Markdown rendering, topic-history append (word count)
   stats.py               Pure aggregation over the topic history
+  text_utils.py          slugify() — used by researcher.py and research_client.py
   seed_topics.json      Offline fallback topics (5 per domain)
   tests/                 Full suite — no real network calls
 inputs/
