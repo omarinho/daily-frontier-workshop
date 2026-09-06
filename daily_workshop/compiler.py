@@ -130,6 +130,26 @@ def _pad_to_extra_words(extra_words_needed: int) -> str:
     return " ".join(words[:extra_words_needed])
 
 
+def _pad_with_whole_sentences(extra_words_needed: int) -> str:
+    """Like :func:`_pad_to_extra_words`, but never cuts a sentence in half.
+
+    Joined with blank lines (not spaces) so a heavily padded section still
+    reads as separate paragraphs instead of one dense wall of text. May
+    overshoot ``extra_words_needed`` by up to one sentence's length —
+    callers that need the total re-clamped against MAX_WORDS afterward
+    (finalize_word_count) do so themselves.
+    """
+    sentences: list[str] = []
+    total = 0
+    i = 0
+    while total < extra_words_needed:
+        sentence = _REFLECTION_SENTENCES[i % len(_REFLECTION_SENTENCES)]
+        sentences.append(sentence)
+        total += len(sentence.split())
+        i += 1
+    return "\n\n".join(sentences)
+
+
 def _split_rationale(rationale: str) -> tuple[str, str]:
     """Split a multi-sentence rationale into (hook, rest).
 
@@ -145,13 +165,17 @@ def _split_rationale(rationale: str) -> tuple[str, str]:
 
 
 def _build_core_concepts(key_facts: tuple[str, ...]) -> str:
-    """Elaborate each key fact into its own sentence (real content, not filler)."""
-    sentences = []
+    """Elaborate each key fact into its own paragraph (real content, not filler).
+
+    Joined with blank lines (not spaces) so Markdown actually renders each
+    fact as a separate paragraph instead of one dense wall of text.
+    """
+    paragraphs = []
     for i, fact in enumerate(key_facts):
         framing = _KEY_FACT_FRAMINGS[i % len(_KEY_FACT_FRAMINGS)]
         sentence = framing.format(fact=fact.rstrip("."))
-        sentences.append(f"{sentence}.")
-    return " ".join(sentences)
+        paragraphs.append(f"{sentence}.")
+    return "\n\n".join(paragraphs)
 
 
 def enforce_word_band(
@@ -198,6 +222,31 @@ def total_word_count(draft: WorkshopDraft) -> int:
     return sum(len(text.split()) for text in draft.sections.values())
 
 
+def _trim_to_word_budget(text: str, word_budget: int) -> str:
+    """Trim ``text`` (paragraphs separated by blank lines) to ``word_budget`` words.
+
+    Drops whole trailing paragraphs first, so paragraphs that survive keep
+    their blank-line breaks intact instead of being flattened back into one
+    wall of text. Only splits mid-paragraph if even the first kept
+    paragraph alone exceeds the budget.
+    """
+    if word_budget <= 0:
+        return ""
+    kept: list[str] = []
+    used = 0
+    for paragraph in text.split("\n\n"):
+        words = paragraph.split()
+        if used + len(words) <= word_budget:
+            kept.append(paragraph)
+            used += len(words)
+        else:
+            remaining = word_budget - used
+            if remaining > 0:
+                kept.append(" ".join(words[:remaining]))
+            break
+    return "\n\n".join(kept)
+
+
 def finalize_word_count(
     draft: WorkshopDraft, min_words: int = MIN_WORDS, max_words: int = MAX_WORDS
 ) -> WorkshopDraft:
@@ -209,13 +258,18 @@ def finalize_word_count(
     sections = dict(draft.sections)
     core = sections.get(HEADING_CORE_CONCEPTS, "")
     if count < min_words:
-        padding = _pad_to_extra_words(min_words - count)
-        core = f"{core.rstrip()} {padding}".strip()
+        padding = _pad_with_whole_sentences(min_words - count)
+        core = f"{core.rstrip()}\n\n{padding}".strip()
+        new_total = count + len(padding.split())
+        if new_total > max_words:
+            core_word_count = sum(len(p.split()) for p in core.split("\n\n"))
+            keep = max(core_word_count - (new_total - max_words), 0)
+            core = _trim_to_word_budget(core, keep)
     else:
         overshoot = count - max_words
-        core_words = core.split()
-        keep = max(len(core_words) - overshoot, 0)
-        core = " ".join(core_words[:keep])
+        core_word_count = sum(len(p.split()) for p in core.split("\n\n"))
+        keep = max(core_word_count - overshoot, 0)
+        core = _trim_to_word_budget(core, keep)
     sections[HEADING_CORE_CONCEPTS] = core
     return dataclasses.replace(draft, sections=sections)
 
@@ -266,8 +320,9 @@ def _build_initial_draft(
     sections = {
         HEADING_OVERVIEW: f"{brief.title}. {overview_hook}",
         HEADING_WHY_IT_MATTERS_NOW: (
-            f"{why_rest} This is the moment to build hands-on fluency here "
-            f"— the underlying technology is moving quickly, and today's "
+            f"{why_rest}\n\n"
+            f"This is the moment to build hands-on fluency here — the "
+            f"underlying technology is moving quickly, and today's "
             f"exercise gives you real, current practice instead of dated "
             f"theory."
         ),
@@ -280,7 +335,7 @@ def _build_initial_draft(
             "the hands-on exercise above."
         ),
         HEADING_FURTHER_READING: (
-            " ".join(brief.source_links)
+            "\n".join(f"- {link}" for link in brief.source_links)
             if brief.source_links
             else "See the primary sources referenced in today's research brief."
         ),

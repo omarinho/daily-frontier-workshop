@@ -142,6 +142,72 @@ def test_finalize_word_count_trims_over_band_draft_into_band() -> None:
     assert MIN_WORDS <= total_word_count(result) <= MAX_WORDS
 
 
+def test_finalize_word_count_trim_preserves_paragraph_breaks() -> None:
+    # Regression: trimming used to flatten paragraphs back into one line
+    # via words.split() + " ".join(...).
+    sections = {heading: "" for heading in NARRATIVE_HEADINGS}
+    paragraphs = [_words(200, f"p{i}") for i in range(10)]
+    sections[HEADING_CORE_CONCEPTS] = "\n\n".join(paragraphs)
+    draft = WorkshopDraft(
+        title="T",
+        domain="agentic_ai",
+        slug="t",
+        sections=sections,
+        hands_on_steps=["step"] * MIN_STEPS,
+        self_check_items=["check"],
+    )
+
+    result = finalize_word_count(draft)
+
+    assert MIN_WORDS <= total_word_count(result) <= MAX_WORDS
+    assert "\n\n" in result.sections[HEADING_CORE_CONCEPTS]
+
+
+def test_core_concepts_separates_key_facts_into_paragraphs() -> None:
+    # Regression: sections used to be one dense wall of space-joined text,
+    # which Markdown renders as a single giant paragraph.
+    brief = _brief(
+        key_facts=("First fact here.", "Second fact here.", "Third fact here.")
+    )
+    compiler = Compiler(profile=_profile())
+
+    draft = compiler.run(brief)
+
+    assert "\n\n" in draft.sections[HEADING_CORE_CONCEPTS]
+
+
+def test_why_it_matters_now_separates_rationale_from_urgency_framing() -> None:
+    brief = _brief(rationale="Sentence one. Sentence two.")
+    compiler = Compiler(profile=_profile())
+
+    draft = compiler.run(brief)
+
+    assert "\n\n" in draft.sections["Why It Matters Now"]
+
+
+def test_further_reading_renders_source_links_as_bullet_list() -> None:
+    brief = _brief(source_links=("https://a.example", "https://b.example"))
+    compiler = Compiler(profile=_profile())
+
+    draft = compiler.run(brief)
+
+    further_reading = draft.sections["Further Reading"]
+    assert "- https://a.example" in further_reading
+    assert "- https://b.example" in further_reading
+
+
+def test_finalize_word_count_padding_never_ends_mid_sentence() -> None:
+    # Regression: padding used to truncate to an exact word count, which
+    # could cut the final reflection sentence in half.
+    draft = _draft_with_core_word_count(10)
+
+    result = finalize_word_count(draft)
+
+    core = result.sections[HEADING_CORE_CONCEPTS]
+    assert core.rstrip().endswith((".", "!", "?"))
+    assert MIN_WORDS <= total_word_count(result) <= MAX_WORDS
+
+
 def test_finalize_step_count_expands_and_trims() -> None:
     short_draft = _draft_with_core_word_count(1000)
     short_draft.hands_on_steps = ["s1", "s2"]
