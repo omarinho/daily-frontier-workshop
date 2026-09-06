@@ -1,0 +1,34 @@
+# Learner personalization profile — read by daily_workshop.profile_loader.
+#
+# This is a plain config file, not a secret (unlike inputs/KEYS.md) — it's
+# tracked in git. Edit it directly to personalize: no code change needed,
+# and it survives you changing stacks or someone else cloning this repo.
+
+preferred_language = "python"
+preferred_cloud = "aws"
+
+known_technologies = [
+    "rest_apis",
+    "microservices",
+    "docker",
+    "kubernetes",
+    "linux_administration",
+    "sql",
+    "nosql",
+]
+
+linting_tools = ["flake8", "pylint", "mypy"]
+formatter = "black"
+
+# One of "none" | "theoretical" | "practical".
+# "none"       -> quantum-track workshops start from first principles.
+# "theoretical" -> math/concepts assumed, hands-on tooling still explained.
+# "practical"   -> skips first-principles setup, assumes hands-on fluency.
+quantum_comfort = "none"
+
+# Assume no familiarity with any specific agentic-AI framework by name yet.
+agentic_framework_familiarity = false
+
+# Freeform tags noted in each workshop's "Prerequisites & Setup" section.
+# Examples: "no_gpu", "local_only", "windows_only".
+constraints = []

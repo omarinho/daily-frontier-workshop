@@ -26,21 +26,26 @@ weekday morning — a real current topic, a real exercise, no filler.
 Three sequential stages, each a narrow, independently testable component:
 
 1. **Researcher** — picks today's domain by rotation (each of the 3 domains
-   appears at least 4 times in any 15 consecutive weekday runs), then calls
-   the Anthropic API with web search enabled to find one concrete, current,
-   hands-on topic — never one already covered in the last 90 days. If the
-   live call fails, it falls back to a bundled seed-topic backlog instead of
-   crashing the run.
+   appears at least `MIN_DOMAIN_APPEARANCES_IN_WINDOW` times in any
+   `DOMAIN_ROTATION_WINDOW` consecutive weekday runs — logged at INFO level
+   every run, with counts, so you can see why a domain won), then calls the
+   Anthropic API with web search enabled to find one concrete, current,
+   hands-on topic — never one already covered in the last 90 days. A live
+   response that reads as a summary rather than a hands-on brief (no real
+   `http(s)` source link, or a one-line exercise) is discarded rather than
+   accepted. Either failure falls back to a bundled seed-topic backlog
+   instead of crashing the run.
 2. **Compiler** — assembles the lesson (Overview, Why It Matters Now, Core
    Concepts, Prerequisites, Hands-On Exercise, Verification, Further
    Reading) from the research brief, and personalizes tooling choices
-   against a small hardcoded profile of the learner's own background
-   (defaults to Python/AWS, skips re-explaining things you already know —
-   see `DEFAULT_PERSONALIZATION_PROFILE` in `compiler.py`).
+   against `inputs/profile.toml` — your stack, tooling preferences, quantum
+   comfort level, and any environment constraints (see `## Personalizing`
+   below).
 3. **Teacher** — renders the final Markdown file to
-   `workshops/YYYY-MM-DD-{topic-slug}.md` and appends one entry to the
-   append-only topic history (`daily_workshop/data/covered_topics.json`),
-   so tomorrow's Researcher knows what to avoid.
+   `workshops/YYYY-MM-DD-{topic-slug}.md` and appends one entry (including
+   the real rendered word count) to the append-only topic history
+   (`daily_workshop/data/covered_topics.json`), so tomorrow's Researcher
+   knows what to avoid.
 
 ### Design choices worth knowing about
 
@@ -82,6 +87,43 @@ Requires Python 3.11+. No third-party dependencies — standard library only.
    python -m daily_workshop
    ```
 
+## Personalizing
+
+Edit `inputs/profile.toml` (tracked in git — it's config, not a secret)
+directly, no code change needed:
+
+```toml
+preferred_language = "python"
+preferred_cloud = "aws"
+known_technologies = ["docker", "kubernetes", "rest_apis"]
+linting_tools = ["flake8", "pylint", "mypy"]
+formatter = "black"
+quantum_comfort = "none"          # "none" | "theoretical" | "practical"
+agentic_framework_familiarity = false
+constraints = ["no_gpu"]          # freeform, noted in Prerequisites & Setup
+```
+
+If the file is missing, a conservative built-in default is used instead
+(logged as a warning) — personalizing is optional, not required for a run
+to succeed.
+
+## Other commands
+
+```
+python -m daily_workshop --preview   # show today's workshop, ask before writing
+python -m daily_workshop stats       # domain distribution, shortest/longest, ratings
+```
+
+`--preview` renders and prints the workshop, then asks
+`Write this workshop and record it in history? [y/N]`. Declining writes
+nothing and leaves the 90-day dedup history untouched, so a topic you
+reject can come up again tomorrow instead of being burned for 90 days.
+
+`stats` reads `covered_topics.json` and reports domain counts, any domain
+never covered yet, and the shortest/longest workshop by real word count.
+Quality is never rated automatically — hand-edit the JSON file and set
+`"quality": 1-5` on any entry to have `stats` start averaging it.
+
 ## Testing
 
 ```
@@ -112,17 +154,24 @@ personal run history, not project source).
 
 ```
 daily_workshop/
-  __main__.py          CLI entrypoint — wires Researcher → Compiler → Teacher
-  constants.py          Named constants (word/step bands, domains, headings)
-  models.py             ResearchBrief, WorkshopDraft, PersonalizationProfile
+  __main__.py          CLI entrypoint — wires Researcher → Compiler → Teacher,
+                         plus --preview and the stats subcommand
+  constants.py          Named constants (word/step bands, domains, headings,
+                         rotation window, quality-gate thresholds)
+  models.py             ResearchBrief, WorkshopDraft, PersonalizationProfile,
+                         TopicRecord
+  profile_loader.py     Loads PersonalizationProfile from inputs/profile.toml
   research_client.py    ResearchClient interface + Anthropic implementation
-  researcher.py          Domain rotation, 90-day dedup, seed-backlog fallback
+  researcher.py          Domain rotation (+ visibility logging), 90-day dedup,
+                         quality gate, seed-backlog fallback
   compiler.py            Lesson assembly, personalization, word-band capping
-  teacher.py             Markdown rendering, topic-history append
+  teacher.py             Markdown rendering, topic-history append (word count)
+  stats.py               Pure aggregation over the topic history
   seed_topics.json      Offline fallback topics (5 per domain)
   tests/                 Full suite — no real network calls
 inputs/
   KEYS.md               Your API key (gitignored, create it yourself)
+  profile.toml           Your personalization profile (tracked — not a secret)
 workshops/               Generated lessons land here (gitignored)
 ```
 

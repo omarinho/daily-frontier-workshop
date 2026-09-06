@@ -48,8 +48,9 @@ def _profile(**overrides: object) -> PersonalizationProfile:
         "known_technologies": ("rest_apis", "docker", "kubernetes"),
         "linting_tools": ("flake8", "pylint", "mypy"),
         "formatter": "black",
-        "quantum_background": False,
+        "quantum_comfort": "none",
         "agentic_framework_familiarity": False,
+        "constraints": (),
     }
     defaults.update(overrides)
     return PersonalizationProfile(**defaults)  # type: ignore[arg-type]
@@ -304,6 +305,102 @@ def test_overview_and_why_it_matters_now_do_not_duplicate_multi_sentence_rationa
     assert draft.sections["Overview"] != draft.sections["Why It Matters Now"]
     assert "second, distinct sentence" in draft.sections["Why It Matters Now"]
     assert "second, distinct sentence" not in draft.sections["Overview"]
+
+
+# ─── quantum comfort + environment constraints (REQ-011 follow-up) ────────
+
+
+def test_no_quantum_background_gets_first_principles_note() -> None:
+    brief = _brief(domain="quantum_computing")
+    compiler = Compiler(profile=_profile(quantum_comfort="none"))
+
+    draft = compiler.run(brief)
+
+    assert "first principles" in draft.sections["Prerequisites & Setup"]
+
+
+def test_practical_quantum_comfort_skips_first_principles_note() -> None:
+    brief = _brief(domain="quantum_computing")
+    compiler = Compiler(profile=_profile(quantum_comfort="practical"))
+
+    draft = compiler.run(brief)
+
+    assert "first principles" not in draft.sections["Prerequisites & Setup"]
+    assert "fluency is assumed" in draft.sections["Prerequisites & Setup"]
+
+
+def test_quantum_comfort_note_only_applies_to_quantum_domain() -> None:
+    brief = _brief(domain="agentic_ai")
+    compiler = Compiler(profile=_profile(quantum_comfort="none"))
+
+    draft = compiler.run(brief)
+
+    assert "quantum" not in draft.sections["Prerequisites & Setup"].lower()
+
+
+def test_environment_constraints_appear_in_prerequisites() -> None:
+    brief = _brief(domain="agentic_ai")
+    compiler = Compiler(profile=_profile(constraints=("no_gpu", "local_only")))
+
+    draft = compiler.run(brief)
+
+    assert "no_gpu" in draft.sections["Prerequisites & Setup"]
+    assert "local_only" in draft.sections["Prerequisites & Setup"]
+
+
+def test_no_constraints_configured_adds_no_note() -> None:
+    brief = _brief(domain="agentic_ai")
+    compiler = Compiler(profile=_profile(constraints=()))
+
+    draft = compiler.run(brief)
+
+    assert "Environment constraints" not in draft.sections["Prerequisites & Setup"]
+
+
+def test_compiler_loads_profile_from_file_when_none_given(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import daily_workshop.compiler as compiler_module
+
+    monkeypatch.setattr(
+        compiler_module,
+        "load_personalization_profile",
+        lambda: _profile(preferred_cloud="gcp"),
+    )
+
+    compiler = Compiler()
+
+    assert compiler._profile.preferred_cloud == "gcp"
+
+
+def test_compiler_does_not_load_profile_from_file_when_one_is_given(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import daily_workshop.compiler as compiler_module
+
+    def _boom() -> PersonalizationProfile:
+        raise AssertionError("load_personalization_profile should not be called")
+
+    monkeypatch.setattr(compiler_module, "load_personalization_profile", _boom)
+
+    Compiler(profile=_profile())  # must not raise
+
+
+def test_compiler_output_always_includes_a_concrete_verification_step() -> None:
+    # Regression guard: the Hands-On Exercise must always end with a step
+    # that asks the learner to actually check their output, and the
+    # Verification section must be non-empty — a workshop without either
+    # degrades into an unverifiable "read some text" exercise.
+    brief = _brief()
+    compiler = Compiler(profile=_profile())
+
+    draft = compiler.run(brief)
+
+    assert any(
+        "compare" in step.lower() or "verify" in step.lower()
+        for step in draft.hands_on_steps
+    )
+    assert draft.sections["Verification / Expected Output"].strip()
 
 
 def test_compiler_run_produces_draft_within_max_words_and_step_bands() -> None:

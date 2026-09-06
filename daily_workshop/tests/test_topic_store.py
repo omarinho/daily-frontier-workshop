@@ -37,12 +37,16 @@ def test_append_adds_exactly_one_new_well_formed_entry(tmp_path: Path) -> None:
         "domain": "agentic_ai",
         "slug": "a",
         "summary": "A",
+        "word_count": 0,
+        "quality": None,
     }
     assert raw[1] == {
         "date": "2026-01-02",
         "domain": "cloud_computing",
         "slug": "b",
         "summary": "B",
+        "word_count": 0,
+        "quality": None,
     }
 
 
@@ -91,7 +95,14 @@ def test_failure_between_temp_write_and_rename_leaves_original_uncorrupted(
 
     assert store_path.read_text(encoding="utf-8") == original_raw
     assert json.loads(original_raw) == [
-        {"date": "2026-01-01", "domain": "agentic_ai", "slug": "a", "summary": "A"}
+        {
+            "date": "2026-01-01",
+            "domain": "agentic_ai",
+            "slug": "a",
+            "summary": "A",
+            "word_count": 0,
+            "quality": None,
+        }
     ]
 
 
@@ -112,6 +123,46 @@ def test_covered_slugs_within_excludes_recent_and_includes_old(tmp_path: Path) -
     covered = store.covered_slugs_within(as_of=date(2026, 1, 10), cooldown_days=90)
 
     assert covered == {"recent"}
+
+
+def test_word_count_and_quality_round_trip(tmp_path: Path) -> None:
+    store_path = tmp_path / "covered_topics.json"
+    store = TopicStore(store_path)
+
+    store.append(
+        TopicRecord(
+            date=date(2026, 1, 1),
+            domain="agentic_ai",
+            slug="a",
+            summary="A",
+            word_count=414,
+            quality=4,
+        )
+    )
+
+    records = store.load_records()
+    assert records[0].word_count == 414
+    assert records[0].quality == 4
+
+
+def test_loading_pre_existing_history_without_word_count_or_quality_keys(
+    tmp_path: Path,
+) -> None:
+    # Backward compatibility: history written before this feature existed
+    # has neither key — must load, not raise KeyError.
+    store_path = tmp_path / "covered_topics.json"
+    store_path.write_text(
+        json.dumps(
+            [{"date": "2026-01-01", "domain": "agentic_ai", "slug": "a", "summary": "A"}]
+        ),
+        encoding="utf-8",
+    )
+    store = TopicStore(store_path)
+
+    records = store.load_records()
+
+    assert records[0].word_count == 0
+    assert records[0].quality is None
 
 
 def test_recent_domains_returns_domains_oldest_first(tmp_path: Path) -> None:

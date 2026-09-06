@@ -57,7 +57,10 @@ def _brief(
         "rationale": "Because it matters.",
         "key_facts": ("fact 1", "fact 2", "fact 3"),
         "source_links": ("https://example.com",),
-        "exercise_idea": "Do the thing.",
+        "exercise_idea": (
+            "Implement a small working example of the concept and verify "
+            "its output against the expected result."
+        ),
     }
     defaults.update(overrides)
     return ResearchBrief(**defaults)  # type: ignore[arg-type]
@@ -287,6 +290,107 @@ def test_fallback_is_explicitly_logged_not_silent(
         researcher.run()
 
     assert any("fall" in record.message.lower() for record in caplog.records)
+
+
+# ─── Minimum brief quality gate (hardened Researcher contract) ─────────────
+
+
+def test_thin_exercise_from_live_client_falls_back_to_seed_backlog(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    topic_store = TopicStore(tmp_path / "covered_topics.json")
+    seed_path = _write_seed_topics(tmp_path)
+    researcher = Researcher(
+        research_client=FakeResearchClient(_brief(exercise_idea="Do it.")),
+        topic_store=topic_store,
+        seed_topics_path=seed_path,
+        today=date(2026, 1, 1),
+    )
+
+    with caplog.at_level(logging.WARNING):
+        brief = researcher.run()
+
+    assert brief.slug.startswith("seed-")
+    assert any("quality bar" in record.message for record in caplog.records)
+
+
+def test_no_real_source_link_from_live_client_falls_back_to_seed_backlog(
+    tmp_path: Path,
+) -> None:
+    topic_store = TopicStore(tmp_path / "covered_topics.json")
+    seed_path = _write_seed_topics(tmp_path)
+    researcher = Researcher(
+        research_client=FakeResearchClient(
+            _brief(source_links=("search the web for: Topic X",))
+        ),
+        topic_store=topic_store,
+        seed_topics_path=seed_path,
+        today=date(2026, 1, 1),
+    )
+
+    brief = researcher.run()
+
+    assert brief.slug.startswith("seed-")
+
+
+def test_substantive_exercise_and_real_link_pass_the_quality_bar(
+    tmp_path: Path,
+) -> None:
+    topic_store = TopicStore(tmp_path / "covered_topics.json")
+    seed_path = _write_seed_topics(tmp_path)
+    researcher = Researcher(
+        research_client=FakeResearchClient(_brief()),  # fixture default qualifies
+        topic_store=topic_store,
+        seed_topics_path=seed_path,
+        today=date(2026, 1, 1),
+    )
+
+    brief = researcher.run()
+
+    assert brief.slug == "topic-x"  # came from the live client, not the seed backlog
+
+
+def test_bundled_seed_topics_all_pass_the_live_quality_bar() -> None:
+    # The fallback data must itself be good enough that falling back never
+    # silently downgrades quality — reuses the real bundled file, not the
+    # small fixture above.
+    from daily_workshop.researcher import DEFAULT_SEED_TOPICS_PATH
+
+    seed_data = json.loads(DEFAULT_SEED_TOPICS_PATH.read_text(encoding="utf-8"))
+    for domain, entries in seed_data.items():
+        for entry in entries:
+            exercise_idea = entry.get("exercise_idea", "")
+            assert len(exercise_idea.split()) >= 8, (
+                f"{domain}/{entry.get('slug')} exercise_idea is too thin to "
+                f"pass the live quality bar"
+            )
+            source_links = entry.get("source_links", [])
+            assert any(
+                link.startswith(("http://", "https://")) for link in source_links
+            ), f"{domain}/{entry.get('slug')} has no real http(s) source link"
+
+
+# ─── Domain-selection visibility (configurable rotation policy) ───────────
+
+
+def test_domain_selection_is_logged_with_counts(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    topic_store = TopicStore(tmp_path / "covered_topics.json")
+    seed_path = _write_seed_topics(tmp_path)
+    researcher = Researcher(
+        research_client=FakeResearchClient(_brief()),
+        topic_store=topic_store,
+        seed_topics_path=seed_path,
+        today=date(2026, 1, 1),
+    )
+
+    with caplog.at_level(logging.INFO):
+        researcher.run()
+
+    messages = [record.message for record in caplog.records]
+    assert any("Domain selected:" in message for message in messages)
+    assert any("agentic_ai" in message for message in messages)
 
 
 def test_fallback_still_respects_90_day_dedup(tmp_path: Path) -> None:

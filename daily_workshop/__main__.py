@@ -7,14 +7,18 @@ by design (AC9) — Omar runs this manually each morning.
 
 from __future__ import annotations
 
+import argparse
 import logging
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol, TypeVar
 
 from daily_workshop.compiler import Compiler
+from daily_workshop.models import WorkshopDraft
 from daily_workshop.research_client import AnthropicResearchClient
 from daily_workshop.researcher import Researcher
+from daily_workshop.stats import compute_stats, format_stats
 from daily_workshop.teacher import DEFAULT_WORKSHOPS_DIR, Teacher
 from daily_workshop.topic_store import DEFAULT_TOPIC_STORE_PATH, TopicStore
 
@@ -79,15 +83,84 @@ def run(
     return 0
 
 
+def _confirm_via_stdin(prompt: str) -> bool:
+    return input(prompt).strip().lower() in ("y", "yes")
+
+
+def run_with_preview(
+    researcher: _ResearcherLike[BriefT],
+    compiler: _CompilerLike[BriefT, WorkshopDraft],
+    teacher: Teacher,
+    confirm: Callable[[str], bool] = _confirm_via_stdin,
+    print_fn: Callable[[str], None] = print,
+) -> int:
+    """Render and show today's workshop; only write/record it if confirmed.
+
+    Unlike :func:`run`, ``teacher`` must be a concrete :class:`Teacher`
+    (not just anything ``_TeacherLike``) — preview needs both
+    ``render_markdown`` (pure, no I/O) and ``commit`` (the actual write +
+    history append), and only the real class draws that line cleanly.
+    Declining leaves the 90-day dedup history untouched, so a rejected
+    topic can come up again tomorrow instead of being burned for 90 days.
+    """
+    try:
+        brief = researcher.run()
+        draft = compiler.run(brief)
+        markdown = Teacher.render_markdown(draft)
+    except Exception:
+        logger.exception("Daily Frontier Workshop preview failed.")
+        return 1
+
+    print_fn(markdown)
+    if not confirm("Write this workshop and record it in history? [y/N] "):
+        print_fn("Discarded — nothing written, history unchanged.")
+        return 0
+
+    try:
+        teacher.commit(draft)
+    except Exception:
+        logger.exception("Daily Frontier Workshop run failed while writing.")
+        return 1
+    return 0
+
+
+def _parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(prog="daily_workshop")
+    parser.add_argument(
+        "command",
+        nargs="?",
+        choices=["stats"],
+        default=None,
+        help="Run 'stats' to show topic-history stats instead of generating "
+        "a workshop.",
+    )
+    parser.add_argument(
+        "--preview",
+        action="store_true",
+        help="Show the workshop and ask for confirmation before writing it "
+        "or updating the 90-day dedup history.",
+    )
+    return parser.parse_args(argv)
+
+
 def main() -> int:
     logging.basicConfig(level=logging.INFO)
+    args = _parse_args(sys.argv[1:])
     topic_store = TopicStore(DEFAULT_TOPIC_STORE_PATH)
+
+    if args.command == "stats":
+        print(format_stats(compute_stats(topic_store.load_records())))
+        return 0
+
     researcher = Researcher(
         research_client=AnthropicResearchClient(keys_path=DEFAULT_KEYS_PATH),
         topic_store=topic_store,
     )
     compiler = Compiler()
     teacher = Teacher(topic_store=topic_store, workshops_dir=DEFAULT_WORKSHOPS_DIR)
+
+    if args.preview:
+        return run_with_preview(researcher, compiler, teacher)
     return run(researcher, compiler, teacher)
 
 

@@ -45,6 +45,11 @@ class TopicStore:
                 domain=entry["domain"],
                 slug=entry["slug"],
                 summary=entry["summary"],
+                # .get() with a default: entries written before word_count/
+                # quality existed have neither key — old history must still
+                # load, not raise KeyError.
+                word_count=entry.get("word_count", 0),
+                quality=entry.get("quality"),
             )
             for entry in raw
         ]
@@ -84,6 +89,8 @@ class TopicStore:
                 "domain": record.domain,
                 "slug": record.slug,
                 "summary": record.summary,
+                "word_count": record.word_count,
+                "quality": record.quality,
             }
         )
         self._path.parent.mkdir(parents=True, exist_ok=True)

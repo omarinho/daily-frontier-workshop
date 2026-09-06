@@ -27,12 +27,20 @@ class ResearchBrief:
 
 @dataclass(frozen=True)
 class TopicRecord:
-    """One append-only entry in the covered-topics history (AC8)."""
+    """One append-only entry in the covered-topics history (AC8).
+
+    ``word_count`` is filled in automatically by Teacher (the real rendered
+    length). ``quality`` is never written by the pipeline — it stays
+    ``None`` unless you hand-edit ``covered_topics.json`` to add a 1-5
+    rating; ``python -m daily_workshop stats`` picks it up if present.
+    """
 
     date: date
     domain: str
     slug: str
     summary: str
+    word_count: int = 0
+    quality: int | None = None
 
 
 @dataclass
@@ -53,11 +61,12 @@ class WorkshopDraft:
 
 @dataclass(frozen=True)
 class PersonalizationProfile:
-    """Static, learner-specific rules the Compiler consults (AC11).
+    """Learner-specific rules the Compiler consults (AC11).
 
-    Set once from the learner's own background (stack, tooling preferences,
-    what to assume they already know) and refreshed manually — not parsed
-    from any external profile source at runtime.
+    Loaded from ``inputs/profile.toml`` by
+    :func:`daily_workshop.profile_loader.load_personalization_profile` — a
+    clone with a different learner, or the same learner adopting a new
+    stack, is a one-file edit, never a code change.
     """
 
     preferred_language: str
@@ -65,5 +74,11 @@ class PersonalizationProfile:
     known_technologies: tuple[str, ...]
     linting_tools: tuple[str, ...]
     formatter: str
-    quantum_background: bool
+    # One of "none" | "theoretical" | "practical" — how much quantum-track
+    # workshops can assume the learner already knows.
+    quantum_comfort: str
     agentic_framework_familiarity: bool
+    # Freeform tags (e.g. "no_gpu", "local_only") noted in Prerequisites &
+    # Setup — informational only, never fed back into what topic/exercise
+    # gets researched.
+    constraints: tuple[str, ...] = ()

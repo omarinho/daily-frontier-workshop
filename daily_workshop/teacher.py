@@ -48,6 +48,17 @@ class Teacher:
         self._today = today or datetime.now(timezone.utc).astimezone().date()
 
     def run(self, draft: WorkshopDraft) -> Path:
+        """Validate, write, and record ``draft``. See :meth:`commit`."""
+        return self.commit(draft)
+
+    def commit(self, draft: WorkshopDraft) -> Path:
+        """Write ``draft`` to disk and append its history record.
+
+        Split out from :meth:`run` (which just calls this) so preview mode
+        (``--preview``, see ``__main__.py``) can render and show a draft
+        without committing it — nothing is written and no 90-day-dedup
+        history entry is created unless this runs.
+        """
         self._validate(draft)
         output_path = self._output_path_for(draft.slug)
 
@@ -69,9 +80,18 @@ class Teacher:
                 domain=draft.domain,
                 slug=draft.slug,
                 summary=self._one_line_summary(draft),
+                word_count=self._word_count(draft),
             )
         )
         return output_path
+
+    @staticmethod
+    def _word_count(draft: WorkshopDraft) -> int:
+        """Prose word count across narrative sections (mirrors compiler.py's
+        ``total_word_count`` — duplicated rather than imported, since Teacher
+        must never import Compiler, per this module's own architecture rule).
+        """
+        return sum(len(text.split()) for text in draft.sections.values())
 
     def _output_path_for(self, slug: str) -> Path:
         return self._workshops_dir / f"{self._today.isoformat()}-{slug}.md"

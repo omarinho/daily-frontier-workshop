@@ -47,6 +47,14 @@ def test_rendered_markdown_headings_exactly_match_required_order() -> None:
     assert _extract_headings(markdown) == list(REQUIRED_HEADINGS)
 
 
+def test_rendered_markdown_has_no_duplicate_headings() -> None:
+    # Regression guard: if REQUIRED_HEADINGS ever gained a duplicate value
+    # by mistake, the rendered file would repeat a section — catch it here,
+    # not by a human noticing a doubled heading in a generated lesson.
+    headings = _extract_headings(Teacher.render_markdown(_draft()))
+    assert len(headings) == len(set(headings))
+
+
 def test_validate_fails_when_a_required_section_is_missing(tmp_path: Path) -> None:
     # TC-006-02
     draft = _draft()
@@ -148,3 +156,31 @@ def test_run_appends_one_topic_record(tmp_path: Path) -> None:
     assert records[0].domain == "cloud_computing"
     assert records[0].slug == "a-topic"
     assert records[0].date == date(2026, 3, 4)
+
+
+def test_run_records_the_real_rendered_word_count(tmp_path: Path) -> None:
+    draft = _draft()
+    expected = sum(len(text.split()) for text in draft.sections.values())
+    topic_store = TopicStore(tmp_path / "covered_topics.json")
+    teacher = Teacher(
+        topic_store=topic_store, workshops_dir=tmp_path / "workshops", today=date(2026, 3, 4)
+    )
+
+    teacher.run(draft)
+
+    assert topic_store.load_records()[0].word_count == expected
+    assert expected > 0
+
+
+def test_commit_is_the_same_operation_as_run(tmp_path: Path) -> None:
+    workshops_dir = tmp_path / "workshops"
+    teacher = Teacher(
+        topic_store=TopicStore(tmp_path / "covered_topics.json"),
+        workshops_dir=workshops_dir,
+        today=date(2026, 3, 4),
+    )
+
+    output_path = teacher.commit(_draft(slug="via-commit"))
+
+    assert output_path == workshops_dir / "2026-03-04-via-commit.md"
+    assert output_path.exists()

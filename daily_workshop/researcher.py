@@ -14,8 +14,11 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 from daily_workshop.constants import (
+    DOMAIN_ROTATION_WINDOW,
     DOMAINS,
     MAX_KEY_FACTS,
+    MIN_DOMAIN_APPEARANCES_IN_WINDOW,
+    MIN_EXERCISE_WORDS,
     MIN_KEY_FACTS,
     TOPIC_COOLDOWN_DAYS,
 )
@@ -49,11 +52,23 @@ class Researcher:
     def run(self) -> ResearchBrief:
         history = self._topic_store.recent_domains()
         domain = self.select_domain(history, self._domains)
+        self._log_domain_selection(domain, history)
         excluded_slugs = self._topic_store.covered_slugs_within(
             self._today, TOPIC_COOLDOWN_DAYS
         )
 
         brief = self._fetch_from_client(domain, excluded_slugs)
+
+        if brief is not None and not self._meets_quality_bar(brief):
+            logger.warning(
+                "ResearchClient response for domain=%s failed the minimum "
+                "quality bar (needs a real http(s) source link and a "
+                "substantive, >= %d-word exercise) — it reads as a summary, "
+                "not a hands-on brief. Falling back to seed backlog.",
+                domain,
+                MIN_EXERCISE_WORDS,
+            )
+            brief = None
 
         if brief is None or brief.slug in excluded_slugs:
             if brief is not None:
@@ -66,6 +81,42 @@ class Researcher:
             brief = self._select_from_seed_backlog(domain, excluded_slugs)
 
         return self._ensure_source_links(self._normalize_key_facts(brief))
+
+    @staticmethod
+    def _meets_quality_bar(brief: ResearchBrief) -> bool:
+        """Reject a live response that reads as a summary, not a hands-on brief.
+
+        Two checks, both cheap proxies for "this is actually usable": a real
+        http(s) source link (not empty, not a placeholder), and an exercise
+        description substantial enough to plausibly be followable as steps
+        rather than a one-line label.
+        """
+        has_real_source_link = any(
+            link.startswith(("http://", "https://")) for link in brief.source_links
+        )
+        has_substantive_exercise = len(brief.exercise_idea.split()) >= MIN_EXERCISE_WORDS
+        return has_real_source_link and has_substantive_exercise
+
+    @staticmethod
+    def _log_domain_selection(domain: str, history: list[str]) -> None:
+        """Log why ``domain`` won today's rotation — visible via INFO logging.
+
+        Two counts, for context: within the last DOMAIN_ROTATION_WINDOW
+        selections (the AC3 policy's stated window) and over the entire
+        history (what select_domain's greedy rule actually uses).
+        """
+        windowed = history[-DOMAIN_ROTATION_WINDOW:]
+        windowed_counts = {d: windowed.count(d) for d in DOMAINS}
+        lifetime_counts = {d: history.count(d) for d in DOMAINS}
+        logger.info(
+            "Domain selected: %s. Appearances in last %d runs: %s "
+            "(policy: >= %d per domain). Lifetime counts: %s.",
+            domain,
+            DOMAIN_ROTATION_WINDOW,
+            windowed_counts,
+            MIN_DOMAIN_APPEARANCES_IN_WINDOW,
+            lifetime_counts,
+        )
 
     def _fetch_from_client(
         self, domain: str, excluded_slugs: set[str]

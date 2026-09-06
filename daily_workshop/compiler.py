@@ -11,9 +11,11 @@ from __future__ import annotations
 import dataclasses
 import logging
 import re
+from typing import cast
 
 from daily_workshop.constants import (
     DOMAIN_CLOUD_COMPUTING,
+    DOMAIN_QUANTUM_COMPUTING,
     HEADING_CORE_CONCEPTS,
     HEADING_FURTHER_READING,
     HEADING_OVERVIEW,
@@ -26,6 +28,7 @@ from daily_workshop.constants import (
     MIN_WORDS,
 )
 from daily_workshop.models import PersonalizationProfile, ResearchBrief, WorkshopDraft
+from daily_workshop.profile_loader import load_personalization_profile
 
 logger = logging.getLogger(__name__)
 
@@ -57,24 +60,18 @@ _KEY_FACT_FRAMINGS: tuple[str, ...] = (
     "Worth remembering: {fact}",
 )
 
-# The learner's own personalization defaults — see PersonalizationProfile.
-DEFAULT_PERSONALIZATION_PROFILE = PersonalizationProfile(
-    preferred_language="python",
-    preferred_cloud="aws",
-    known_technologies=(
-        "rest_apis",
-        "microservices",
-        "docker",
-        "kubernetes",
-        "linux_administration",
-        "sql",
-        "nosql",
+_QUANTUM_COMFORT_NOTES: dict[str, str] = {
+    "none": (
+        " No prior quantum background is assumed — this starts from first "
+        "principles on the quantum concept itself."
     ),
-    linting_tools=("flake8", "pylint", "mypy"),
-    formatter="black",
-    quantum_background=False,
-    agentic_framework_familiarity=False,
-)
+    "practical": (
+        " Hands-on quantum fluency is assumed here, so first-principles "
+        "setup is skipped."
+    ),
+    # "theoretical" gets no extra note: math/concepts assumed, tooling
+    # walkthrough stays as normal.
+}
 
 
 def build_render_context(
@@ -89,12 +86,19 @@ def build_render_context(
         tech in profile.known_technologies
         for tech in _SUPPRESSIBLE_PROFILE_TECHNOLOGIES
     )
+    quantum_note = (
+        _QUANTUM_COMFORT_NOTES.get(profile.quantum_comfort, "")
+        if brief.domain == DOMAIN_QUANTUM_COMPUTING
+        else ""
+    )
     return {
         "language": profile.preferred_language,
         "cloud": profile.preferred_cloud
         if brief.domain == DOMAIN_CLOUD_COMPUTING
         else None,
         "suppress_known_basics": mentions_suppressible_topic and already_known,
+        "quantum_note": quantum_note,
+        "constraints": profile.constraints,
     }
 
 
@@ -263,6 +267,13 @@ def _build_initial_draft(
         if context.get("suppress_known_basics")
         else ""
     )
+    quantum_note = str(context.get("quantum_note") or "")
+    constraints = cast("tuple[str, ...]", context.get("constraints") or ())
+    constraints_note = (
+        f" Environment constraints: {', '.join(str(c) for c in constraints)}."
+        if constraints
+        else ""
+    )
     overview_hook, why_rest = _split_rationale(brief.rationale)
     sections = {
         HEADING_OVERVIEW: f"{brief.title}. {overview_hook}",
@@ -275,7 +286,8 @@ def _build_initial_draft(
         ),
         HEADING_CORE_CONCEPTS: _build_core_concepts(brief.key_facts),
         HEADING_PREREQUISITES: (
-            f"A {language} environment is assumed{cloud_note}.{basics_note}"
+            f"A {language} environment is assumed{cloud_note}."
+            f"{basics_note}{quantum_note}{constraints_note}"
         ),
         HEADING_VERIFICATION: (
             "Confirm your output matches the expected result described in "
@@ -300,10 +312,10 @@ def _build_initial_draft(
 class Compiler:
     """Assembles a :class:`WorkshopDraft` from a :class:`ResearchBrief`."""
 
-    def __init__(
-        self, profile: PersonalizationProfile = DEFAULT_PERSONALIZATION_PROFILE
-    ) -> None:
-        self._profile = profile
+    def __init__(self, profile: PersonalizationProfile | None = None) -> None:
+        # Left unset, reads inputs/profile.toml on construction; tests that
+        # always pass an explicit profile never touch the filesystem here.
+        self._profile = profile or load_personalization_profile()
 
     def run(self, brief: ResearchBrief) -> WorkshopDraft:
         context = build_render_context(brief, self._profile)

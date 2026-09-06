@@ -25,8 +25,25 @@ MAX_STEPS: int = 8
 MIN_KEY_FACTS: int = 3
 MAX_KEY_FACTS: int = 5
 
+# ─── Research brief quality gate ───────────────────────────────────────────
+# A live ResearchClient response below this bar (a one-line exercise, or no
+# real http(s) source link) reads as a summary, not a hands-on brief — the
+# Researcher discards it and falls back to the seed backlog rather than
+# accepting a technically-present-but-thin response.
+MIN_EXERCISE_WORDS: int = 8
+
 # ─── Topic dedup (AC4) ──────────────────────────────────────────────────────
 TOPIC_COOLDOWN_DAYS: int = 90
+
+# ─── Domain rotation fairness (AC3) — configurable, logged for visibility ──
+# select_domain()'s greedy least-selected-so-far rule (using the *entire*
+# history, not just this window) already guarantees each domain is at least
+# this well represented in any window of this size — these constants don't
+# change that algorithm, they name the policy it satisfies so Researcher can
+# log it and a reader can see what's being enforced instead of a bare "4"
+# and "15" floating in a docstring.
+DOMAIN_ROTATION_WINDOW: int = 15
+MIN_DOMAIN_APPEARANCES_IN_WINDOW: int = 4
 
 # ─── Domains (AC3) ──────────────────────────────────────────────────────────
 DOMAIN_AGENTIC_AI: str = "agentic_ai"
