@@ -71,6 +71,17 @@ class TopicStore:
         """Domains of every recorded entry, oldest first."""
         return [record.domain for record in self.load_records()]
 
+    def recent_summaries_for_domain(self, domain: str, limit: int) -> list[str]:
+        """The last ``limit`` summaries recorded for ``domain``, newest first.
+
+        Used to give the live research prompt topical-diversity context —
+        slug-based dedup only blocks an exact repeat; this lets the prompt
+        avoid re-covering the same underlying technology/product under a
+        different title (see RECENT_TITLES_CONTEXT_WINDOW).
+        """
+        matching = [r.summary for r in self.load_records() if r.domain == domain]
+        return list(reversed(matching[-limit:]))
+
     def append(self, record: TopicRecord) -> None:
         """Add exactly one new entry, atomically, preserving prior history.
 

@@ -35,6 +35,17 @@ MIN_EXERCISE_WORDS: int = 8
 # ─── Topic dedup (AC4) ──────────────────────────────────────────────────────
 TOPIC_COOLDOWN_DAYS: int = 90
 
+# ─── Topical diversity within a domain ─────────────────────────────────────
+# Slug-based 90-day dedup (AC4) only blocks an exact repeat topic — it does
+# nothing about live research returning the same underlying
+# technology/product reframed under a new title every time it's the hottest
+# thing in a domain (observed in practice: several real runs in a row all
+# being some angle on "Amazon Bedrock AgentCore + MCP"). Researcher passes
+# the last this-many same-domain titles to the research prompt so the model
+# can judge "different angle on the same thing" itself, rather than us
+# trying to detect topic clusters mechanically.
+RECENT_TITLES_CONTEXT_WINDOW: int = 5
+
 # ─── Domain rotation fairness (AC3) — configurable, logged for visibility ──
 # select_domain()'s greedy least-selected-so-far rule (using the *entire*
 # history, not just this window) already guarantees each domain is at least

@@ -30,11 +30,15 @@ Three sequential stages, each a narrow, independently testable component:
    `DOMAIN_ROTATION_WINDOW` consecutive weekday runs — logged at INFO level
    every run, with counts, so you can see why a domain won), then calls the
    Anthropic API with web search enabled to find one concrete, current,
-   hands-on topic — never one already covered in the last 90 days. A live
-   response that reads as a summary rather than a hands-on brief (no real
-   `http(s)` source link, or a one-line exercise) is discarded rather than
-   accepted. Either failure falls back to a bundled seed-topic backlog
-   instead of crashing the run.
+   hands-on topic — never one already covered in the last 90 days, and
+   nudged away from re-covering the same underlying technology/product
+   under a new title (the prompt gets the last few same-domain titles as
+   diversity context — 90-day dedup alone only blocks an exact repeat, not
+   "AgentCore Gateway" five days running under five different titles). A
+   live response that reads as a summary rather than a hands-on brief (no
+   real `http(s)` source link, or a one-line exercise) is discarded rather
+   than accepted. Any of these failures falls back to a bundled seed-topic
+   backlog instead of crashing the run.
 2. **Compiler** — assembles the lesson (Overview, Why It Matters Now, Core
    Concepts, Prerequisites, Hands-On Exercise, Verification, Further
    Reading) from the research brief, and personalizes tooling choices

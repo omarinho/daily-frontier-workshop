@@ -39,7 +39,7 @@ ANTHROPIC_API_VERSION: str = "2023-06-01"
 ANTHROPIC_MODEL: str = "claude-sonnet-5"
 MODEL_TIER_PATTERN: re.Pattern[str] = re.compile(r"^claude-sonnet-\d")
 ANTHROPIC_MAX_TOKENS: int = 4096
-ANTHROPIC_REQUEST_TIMEOUT_SECONDS: int = 30
+ANTHROPIC_REQUEST_TIMEOUT_SECONDS: int = 60
 
 
 class ResearchClientError(Exception):
@@ -55,10 +55,16 @@ class ResearchClient(ABC):
 
     @abstractmethod
     def fetch_brief(
-        self, domain: str, excluded_slugs: frozenset[str]
+        self,
+        domain: str,
+        excluded_slugs: frozenset[str],
+        recent_titles: tuple[str, ...] = (),
     ) -> ResearchBrief | None:
         """Return one hands-on-capable topic for ``domain``.
 
+        ``recent_titles`` (most recent first) are titles already covered in
+        this domain, for topical-diversity guidance — distinct from
+        ``excluded_slugs``, which is the hard 90-day dedup exclusion.
         Implementations may return ``None`` or raise :class:`ResearchClientError`
         when research is unavailable; both are treated as a fallback trigger
         by the Researcher.
@@ -173,7 +179,10 @@ class AnthropicResearchClient(ResearchClient):
         return model_id
 
     def fetch_brief(
-        self, domain: str, excluded_slugs: frozenset[str]
+        self,
+        domain: str,
+        excluded_slugs: frozenset[str],
+        recent_titles: tuple[str, ...] = (),
     ) -> ResearchBrief | None:
         request_body = {
             "model": self._current_model(),
@@ -182,7 +191,7 @@ class AnthropicResearchClient(ResearchClient):
             "messages": [
                 {
                     "role": "user",
-                    "content": self._build_prompt(domain, excluded_slugs),
+                    "content": self._build_prompt(domain, excluded_slugs, recent_titles),
                 }
             ],
         }
@@ -208,13 +217,28 @@ class AnthropicResearchClient(ResearchClient):
         return self._parse_response(domain, payload)
 
     @staticmethod
-    def _build_prompt(domain: str, excluded_slugs: frozenset[str]) -> str:
+    def _build_prompt(
+        domain: str,
+        excluded_slugs: frozenset[str],
+        recent_titles: tuple[str, ...] = (),
+    ) -> str:
         exclusions = ", ".join(sorted(excluded_slugs)) or "none"
+        diversity_note = ""
+        if recent_titles:
+            diversity_note = (
+                f" Also avoid picking something that is really just a "
+                f"different angle on the same underlying technology or "
+                f"product as any of these recently covered topics in this "
+                f"same domain — a different feature of the same product "
+                f"does not count as a new topic, even if the exact title "
+                f"differs: {'; '.join(recent_titles)}."
+            )
         return (
             f"Find one current, practical, hands-on topic in the domain "
             f"'{domain}' for a senior Python/AWS engineer. Exclude topics "
-            f"matching these already-covered slugs: {exclusions}. Use web "
-            f"search to ground the topic in something current. "
+            f"matching these already-covered slugs: {exclusions}."
+            f"{diversity_note} Use web search to ground the topic in "
+            f"something current. "
             f"After searching, respond with ONLY a single JSON object as "
             f"your final message — no prose before or after it, no markdown "
             f"code fences — with these keys:\n"

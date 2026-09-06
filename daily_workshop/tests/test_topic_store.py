@@ -165,6 +165,43 @@ def test_loading_pre_existing_history_without_word_count_or_quality_keys(
     assert records[0].quality is None
 
 
+def test_recent_summaries_for_domain_filters_and_orders_newest_first(
+    tmp_path: Path,
+) -> None:
+    store = TopicStore(tmp_path / "covered_topics.json")
+    store.append(
+        TopicRecord(date=date(2026, 1, 1), domain="agentic_ai", slug="a", summary="A")
+    )
+    store.append(
+        TopicRecord(
+            date=date(2026, 1, 2), domain="cloud_computing", slug="x", summary="X"
+        )
+    )
+    store.append(
+        TopicRecord(date=date(2026, 1, 3), domain="agentic_ai", slug="b", summary="B")
+    )
+
+    assert store.recent_summaries_for_domain("agentic_ai", limit=5) == ["B", "A"]
+    assert store.recent_summaries_for_domain("quantum_computing", limit=5) == []
+
+
+def test_recent_summaries_for_domain_respects_limit(tmp_path: Path) -> None:
+    store = TopicStore(tmp_path / "covered_topics.json")
+    for i in range(7):
+        store.append(
+            TopicRecord(
+                date=date(2026, 1, i + 1),
+                domain="agentic_ai",
+                slug=f"t{i}",
+                summary=f"S{i}",
+            )
+        )
+
+    result = store.recent_summaries_for_domain("agentic_ai", limit=3)
+
+    assert result == ["S6", "S5", "S4"]
+
+
 def test_recent_domains_returns_domains_oldest_first(tmp_path: Path) -> None:
     store_path = tmp_path / "covered_topics.json"
     store = TopicStore(store_path)

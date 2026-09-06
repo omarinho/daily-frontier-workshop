@@ -96,6 +96,19 @@ def test_missing_key_entirely_raises_clear_configuration_error(tmp_path: Path) -
         AnthropicResearchClient(keys_path=keys_path)
 
 
+def test_build_prompt_includes_diversity_note_when_recent_titles_given() -> None:
+    prompt = AnthropicResearchClient._build_prompt(
+        "agentic_ai", frozenset(), recent_titles=("Amazon Bedrock AgentCore Gateway",)
+    )
+    assert "Amazon Bedrock AgentCore Gateway" in prompt
+    assert "different angle on the same underlying technology" in prompt
+
+
+def test_build_prompt_omits_diversity_note_when_no_recent_titles() -> None:
+    prompt = AnthropicResearchClient._build_prompt("agentic_ai", frozenset())
+    assert "different angle on the same underlying technology" not in prompt
+
+
 def test_parse_response_skips_leading_web_search_blocks() -> None:
     # Regression: a real web-search-enabled response puts server_tool_use /
     # web_search_tool_result blocks BEFORE the final text block — the parser

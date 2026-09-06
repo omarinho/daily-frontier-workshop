@@ -20,6 +20,7 @@ from daily_workshop.constants import (
     MIN_DOMAIN_APPEARANCES_IN_WINDOW,
     MIN_EXERCISE_WORDS,
     MIN_KEY_FACTS,
+    RECENT_TITLES_CONTEXT_WINDOW,
     TOPIC_COOLDOWN_DAYS,
 )
 from daily_workshop.models import ResearchBrief
@@ -56,8 +57,13 @@ class Researcher:
         excluded_slugs = self._topic_store.covered_slugs_within(
             self._today, TOPIC_COOLDOWN_DAYS
         )
+        recent_titles = tuple(
+            self._topic_store.recent_summaries_for_domain(
+                domain, RECENT_TITLES_CONTEXT_WINDOW
+            )
+        )
 
-        brief = self._fetch_from_client(domain, excluded_slugs)
+        brief = self._fetch_from_client(domain, excluded_slugs, recent_titles)
 
         if brief is not None and not self._meets_quality_bar(brief):
             logger.warning(
@@ -119,10 +125,15 @@ class Researcher:
         )
 
     def _fetch_from_client(
-        self, domain: str, excluded_slugs: set[str]
+        self,
+        domain: str,
+        excluded_slugs: set[str],
+        recent_titles: tuple[str, ...] = (),
     ) -> ResearchBrief | None:
         try:
-            return self._research_client.fetch_brief(domain, frozenset(excluded_slugs))
+            return self._research_client.fetch_brief(
+                domain, frozenset(excluded_slugs), recent_titles
+            )
         except ResearchClientError as exc:
             logger.warning(
                 "ResearchClient failed for domain=%s: %s. Falling back to "

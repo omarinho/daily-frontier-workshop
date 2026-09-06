@@ -15,7 +15,7 @@ from daily_workshop.constants import (
     MIN_KEY_FACTS,
     TOPIC_COOLDOWN_DAYS,
 )
-from daily_workshop.models import ResearchBrief
+from daily_workshop.models import ResearchBrief, TopicRecord
 from daily_workshop.research_client import ResearchClientError
 from daily_workshop.researcher import DEFAULT_SEED_TOPICS_PATH, Researcher
 from daily_workshop.tests.fakes import (
@@ -368,6 +368,70 @@ def test_bundled_seed_topics_all_pass_the_live_quality_bar() -> None:
             assert any(
                 link.startswith(("http://", "https://")) for link in source_links
             ), f"{domain}/{entry.get('slug')} has no real http(s) source link"
+
+
+# ─── Topical diversity within a domain ─────────────────────────────────────
+
+
+def test_recent_same_domain_titles_are_passed_to_the_research_client(
+    tmp_path: Path,
+) -> None:
+    topic_store = TopicStore(tmp_path / "covered_topics.json")
+    topic_store.append(
+        TopicRecord(
+            date=date(2026, 1, 1), domain="agentic_ai", slug="a", summary="Topic A"
+        )
+    )
+    topic_store.append(
+        TopicRecord(
+            date=date(2026, 1, 2),
+            domain="cloud_computing",
+            slug="c",
+            summary="Topic C",
+        )
+    )
+    # Tie every domain's count at 1 so select_domain's tie-break (declared
+    # order) picks agentic_ai — otherwise the greedy least-selected rule
+    # would pick quantum_computing (count 0) instead.
+    topic_store.append(
+        TopicRecord(
+            date=date(2026, 1, 3),
+            domain="quantum_computing",
+            slug="q",
+            summary="Topic Q",
+        )
+    )
+    seed_path = _write_seed_topics(tmp_path)
+    client = FakeResearchClient(_brief())
+    researcher = Researcher(
+        research_client=client,
+        topic_store=topic_store,
+        seed_topics_path=seed_path,
+        today=date(2026, 1, 10),
+    )
+
+    researcher.run()
+
+    assert client.last_call is not None
+    _, _, recent_titles = client.last_call
+    assert recent_titles == ("Topic A",)  # only the same-domain (agentic_ai) one
+
+
+def test_no_history_passes_empty_recent_titles(tmp_path: Path) -> None:
+    topic_store = TopicStore(tmp_path / "covered_topics.json")
+    seed_path = _write_seed_topics(tmp_path)
+    client = FakeResearchClient(_brief())
+    researcher = Researcher(
+        research_client=client,
+        topic_store=topic_store,
+        seed_topics_path=seed_path,
+        today=date(2026, 1, 1),
+    )
+
+    researcher.run()
+
+    assert client.last_call is not None
+    assert client.last_call[2] == ()
 
 
 # ─── Domain-selection visibility (configurable rotation policy) ───────────
